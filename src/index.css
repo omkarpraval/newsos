@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #161616;
+  --bg-elevated: #1e1e1e;
+  --accent-gold: #f0a500;
+  --accent-gold-dim: #c87f00;
+  --accent-red: #e63946;
+  --accent-blue: #3a86ff;
+  --accent-green: #2ec4b6;
+  --text-primary: #f0ede8;
+  --text-secondary: #9c9a92;
+  --text-muted: #555550;
+  --border: rgba(240, 165, 0, 0.15);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+}
+
+/* Persona accent overrides */
+[data-persona='trader'] {
+  --persona-accent: var(--accent-green);
+  --persona-accent-dim: #1fa89a;
+}
+
+[data-persona='founder'] {
+  --persona-accent: var(--accent-gold);
+  --persona-accent-dim: var(--accent-gold-dim);
+}
+
+[data-persona='learner'] {
+  --persona-accent: var(--accent-blue);
+  --persona-accent-dim: #2a6fd9;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(240, 165, 0, 0.28);
+  color: var(--text-primary);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 0%,
+    var(--bg-elevated) 50%,
+    var(--bg-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.page-transition-initial {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.page-transition-enter {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.font-hindi {
+  font-family: 'Noto Sans Devanagari', 'Hind', 'DM Sans', sans-serif;
+}
+
+.font-tamil {
+  font-family: 'Noto Sans Tamil', 'Catamaran', 'DM Sans', sans-serif;
+}
+
+.font-telugu {
+  font-family: 'Noto Sans Telugu', 'DM Sans', sans-serif;
+}
+
+.font-bengali {
+  font-family: 'Noto Sans Bengali', 'DM Sans', sans-serif;
+}
+
+.gold-glass {
+  background: radial-gradient(120% 140% at 10% 0%, rgba(240, 165, 0, 0.14) 0%, rgba(240, 165, 0, 0.02) 38%, rgba(0, 0, 0, 0.2) 100%),
+    rgba(22, 22, 22, 0.7);
+  backdrop-filter: blur(8px);
+}
