@@ -57,3 +57,39 @@ export async function speakElevenLabs(text: string): Promise<boolean> {
     return false
   }
 }
+
+/** Speak text in Hindi using Web Speech API */
+export function speakHindi(text: string, onEnd?: () => void) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+
+  window.speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(text)
+  const voices = window.speechSynthesis.getVoices()
+
+  // Try to find a Hindi voice
+  const hindiVoice =
+    voices.find((v) => v.lang === 'hi-IN') ||
+    voices.find((v) => v.lang.startsWith('hi')) ||
+    voices.find((v) => v.name.toLowerCase().includes('hindi'))
+
+  if (hindiVoice) {
+    u.voice = hindiVoice
+    u.lang = 'hi-IN'
+  } else {
+    u.lang = 'hi-IN'
+  }
+
+  u.rate = 0.85  // Slower for comprehension
+  u.pitch = 1.0
+
+  if (onEnd) {
+    u.onend = onEnd
+  }
+
+  try {
+    window.speechSynthesis.speak(u)
+  } catch {
+    /* noop */
+  }
+}
+

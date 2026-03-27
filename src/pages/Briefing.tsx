@@ -1,45 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
-import { callGroq, parseGroqJSON } from '../services/groq'
+import {
+  generateAngleSynthesis,
+  generateAngleBriefing,
+  answerWithAngleContext,
+  generateSyntheticArticles,
+} from '../services/groq'
+import {
+  MOCK_BUDGET_ARTICLES,
+  MOCK_IPL_ARTICLES,
+  MOCK_STOCK_MARKET_ARTICLES,
+  MOCK_WAR_ARTICLES
+} from '../services/mockData'
+import type { SynthesisAngle, AngleBriefingData } from '../types'
 
 interface Article {
   title: string
   description: string
   url: string
   urlToImage: string
+  content?: string
   source: { name: string }
   publishedAt: string
-}
-
-interface TopicCluster {
-  keyword: string
-  label: string
-  category: string
-  color: string
-  articleCount: number
-  articles: Article[]
-  latestTime: string
-  urgency: 'breaking' | 'developing' | 'analysis'
-}
-
-interface BriefingSection {
-  id: string
-  title: string
-  icon: string
-  content: string
-  isLoading: boolean
-}
-
-interface BriefingData {
-  summary: string
-  facts: string[]
-  players: Array<{ name: string; role: string; stance: string }>
-  views: Array<{ perspective: string; argument: string }>
-  impact: string
-  watchNext: string[]
-  prediction: string
-  confidenceScore: number
 }
 
 interface ChatMessage {
@@ -47,30 +30,11 @@ interface ChatMessage {
   content: string
 }
 
-const FALLBACK_TOPICS: TopicCluster[] = [
-  { keyword: 'RBI interest rates', label: 'RBI & Monetary Policy', category: 'business', color: '#f0a500', articleCount: 0, articles: [], latestTime: new Date().toISOString(), urgency: 'developing' },
-  { keyword: 'India GDP economy', label: 'India Economy', category: 'business', color: '#2ec4b6', articleCount: 0, articles: [], latestTime: new Date().toISOString(), urgency: 'analysis' },
-  { keyword: 'India startup funding', label: 'Startup Ecosystem', category: 'technology', color: '#8b5cf6', articleCount: 0, articles: [], latestTime: new Date().toISOString(), urgency: 'developing' },
-  { keyword: 'Modi government policy', label: 'Government Policy', category: 'politics', color: '#3a86ff', articleCount: 0, articles: [], latestTime: new Date().toISOString(), urgency: 'analysis' },
-  { keyword: 'Nifty Sensex stock market', label: 'Markets Today', category: 'business', color: '#e63946', articleCount: 0, articles: [], latestTime: new Date().toISOString(), urgency: 'breaking' },
-  { keyword: 'India technology AI', label: 'Tech & AI in India', category: 'technology', color: '#06d6a0', articleCount: 0, articles: [], latestTime: new Date().toISOString(), urgency: 'analysis' },
-]
-
 const URGENCY_CONFIG = {
   breaking: { label: 'BREAKING', color: '#e63946', pulse: true },
   developing: { label: 'DEVELOPING', color: '#f0a500', pulse: false },
   analysis: { label: 'ANALYSIS', color: '#3a86ff', pulse: false },
 } as const
-
-const SECTION_TEMPLATES: Omit<BriefingSection, 'content' | 'isLoading'>[] = [
-  { id: 'summary', title: 'Situation Summary', icon: '◉' },
-  { id: 'facts', title: 'Key Intelligence', icon: '≡' },
-  { id: 'players', title: 'Key Players', icon: '◈' },
-  { id: 'views', title: 'Contrasting Views', icon: '⟺' },
-  { id: 'impact', title: 'Impact Assessment', icon: '⚡' },
-  { id: 'watchNext', title: 'Signals to Monitor', icon: '◎' },
-  { id: 'prediction', title: 'AI Prediction', icon: '✦' },
-]
 
 function timeAgo(dateStr: string): string {
   try {
@@ -86,605 +50,575 @@ function timeAgo(dateStr: string): string {
 
 export default function BriefingPage() {
   const location = useLocation()
-  // keep hook import alignment if we later add navigation actions
   const queryParams = new URLSearchParams(location.search)
   const prefilledTopic = queryParams.get('topic')
 
-  const [topics, setTopics] = useState<TopicCluster[]>([])
-  const [topicsLoading, setTopicsLoading] = useState(true)
-  const [topicsError, setTopicsError] = useState<string | null>(null)
-  const [selectedTopic, setSelectedTopic] = useState<TopicCluster | null>(null)
+  // ── Topic selection state ──
+  const [articles, setArticles] = useState<Article[]>([])
+  const [topicsLoading, setTopicsLoading] = useState(false)
   const [customQuery, setCustomQuery] = useState('')
+  const [activeTopic, setActiveTopic] = useState<string | null>(null)
 
-  const [sections, setSections] = useState<BriefingSection[]>([])
-  // briefingLoading reserved for future progress UI
-  const [briefingData, setBriefingData] = useState<BriefingData | null>(null)
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['summary', 'facts']))
-  const [activeSection, setActiveSection] = useState<string | null>(null)
+  // ── Angle synthesis state ──
+  const [angles, setAngles] = useState<SynthesisAngle[]>([])
+  const [activeAngleId, setActiveAngleId] = useState<string | null>(null)
+  const [angleBriefings, setAngleBriefings] = useState<Record<string, AngleBriefingData>>({})
+  const [loadingAngle, setLoadingAngle] = useState<string | null>(null)
+  const [synthesizing, setSynthesizing] = useState(false)
 
+  // ── Chat state ──
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [showChat, setShowChat] = useState(false)
-
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [savedBriefings, setSavedBriefings] = useState<Array<{ topic: string; savedAt: string }>>([])
-
   const chatEndRef = useRef<HTMLDivElement>(null)
   const briefingRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    void loadTopics()
-  }, [])
+  // ── Suggested topics ──
+  const SUGGESTED_TOPICS = [
+    { label: 'Union Budget India 2025', query: 'Union Budget India 2025', color: '#f0a500' },
+    { label: 'RBI Rate Decision', query: 'RBI interest rate monetary policy', color: '#3a86ff' },
+    { label: 'Nifty & Markets', query: 'Nifty Sensex stock market India', color: '#e63946' },
+    { label: 'India Startup Funding', query: 'India startup funding unicorn', color: '#8b5cf6' },
+    { label: 'AI & Tech India', query: 'India artificial intelligence technology', color: '#06d6a0' },
+  ]
 
   useEffect(() => {
-    if (prefilledTopic && topics.length > 0) {
-      void handleCustomSearch(prefilledTopic)
-    }
+    if (prefilledTopic) void handleSearch(prefilledTopic)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefilledTopic, topics.length])
-
-  async function loadTopics() {
-    setTopicsLoading(true)
-    setTopicsError(null)
-    try {
-      const [businessRes, generalRes, techRes] = await Promise.allSettled([
-        fetch('/api/news?type=headlines&category=business&pageSize=20').then((r) => r.json()),
-        fetch('/api/news?type=headlines&category=general&pageSize=15').then((r) => r.json()),
-        fetch('/api/news?type=search&query=India+technology+startup&pageSize=10&daysBack=7').then((r) => r.json()),
-      ])
-      const allArticles: Article[] = [
-        ...(businessRes.status === 'fulfilled' ? businessRes.value.articles || [] : []),
-        ...(generalRes.status === 'fulfilled' ? generalRes.value.articles || [] : []),
-        ...(techRes.status === 'fulfilled' ? techRes.value.articles || [] : []),
-      ]
-      if (allArticles.length === 0) throw new Error('No articles returned from API')
-      const clusters = clusterArticlesIntoTopics(allArticles)
-      setTopics(clusters.length > 0 ? clusters : FALLBACK_TOPICS)
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load topics'
-      // eslint-disable-next-line no-console
-      console.error('[Briefing] Topic load error:', message)
-      setTopicsError(message)
-      setTopics(FALLBACK_TOPICS)
-    } finally {
-      setTopicsLoading(false)
-    }
-  }
-
-  function clusterArticlesIntoTopics(articles: Article[]): TopicCluster[] {
-    const patterns = [
-      { keyword: 'RBI', label: 'RBI & Monetary Policy', category: 'business', color: '#f0a500' },
-      { keyword: 'budget|fiscal|GDP|economy', label: 'India Economy', category: 'business', color: '#2ec4b6' },
-      { keyword: 'startup|unicorn|funding|VC', label: 'Startup Ecosystem', category: 'technology', color: '#8b5cf6' },
-      { keyword: 'Modi|BJP|parliament|government|policy', label: 'Government & Policy', category: 'politics', color: '#3a86ff' },
-      { keyword: 'Nifty|Sensex|BSE|NSE|stock|market', label: 'Markets Today', category: 'business', color: '#e63946' },
-      { keyword: 'AI|artificial intelligence|tech|digital', label: 'Tech & AI in India', category: 'technology', color: '#06d6a0' },
-      { keyword: 'China|US|trade|global|war|geopolit', label: 'Geopolitics', category: 'general', color: '#ff6b35' },
-      { keyword: 'inflation|price|cost|petrol|fuel', label: 'Prices & Inflation', category: 'business', color: '#f0a500' },
-    ]
-    const clusters: TopicCluster[] = []
-    patterns.forEach((pattern) => {
-      const regex = new RegExp(pattern.keyword, 'i')
-      const matched = articles.filter((a) => regex.test(a.title) || regex.test(a.description || ''))
-      if (matched.length > 0) {
-        const sorted = matched.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
-        const ageHours = (Date.now() - new Date(sorted[0].publishedAt).getTime()) / 3600000
-        const urgency: TopicCluster['urgency'] = ageHours < 2 ? 'breaking' : ageHours < 12 ? 'developing' : 'analysis'
-        clusters.push({
-          keyword: pattern.keyword.split('|')[0],
-          label: pattern.label,
-          category: pattern.category,
-          color: pattern.color,
-          articleCount: matched.length,
-          articles: sorted,
-          latestTime: sorted[0].publishedAt,
-          urgency,
-        })
-      }
-    })
-    const urgencyOrder = { breaking: 0, developing: 1, analysis: 2 } as const
-    return clusters.sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency])
-  }
-
-  async function handleTopicSelect(topic: TopicCluster) {
-    setSelectedTopic(topic)
-    setBriefingData(null)
-    setChatMessages([])
-    setShowChat(false)
-    setExpandedSections(new Set(['summary', 'facts']))
-    setSections(SECTION_TEMPLATES.map((t) => ({ ...t, content: '', isLoading: true })))
-    // setBriefingLoading(true)
-    setIsStreaming(true)
-    window.setTimeout(() => briefingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-    try {
-      const articlesContext = topic.articles
-        .slice(0, 8)
-        .map(
-          (a) =>
-            `SOURCE: ${a.source.name}\nHEADLINE: ${a.title}\nDETAILS: ${a.description || 'No details'}\nPUBLISHED: ${new Date(a.publishedAt).toLocaleString('en-IN')}`
-        )
-        .join('\n\n---\n\n')
-
-      const prompt = `You are an elite intelligence analyst for NewsOS, preparing a classified briefing on: "${topic.label}"
-
-Analyze these ${topic.articles.length} source articles and return a structured JSON briefing:
-
-SOURCES:
-${articlesContext}
-
-Return ONLY valid JSON in this exact structure (no markdown, no code blocks):
-{
-  "summary": "3 clear sentences. What happened, why it matters, what comes next.",
-  "facts": [
-    "Specific fact with number or date",
-    "Specific fact with number or date", 
-    "Specific fact with number or date",
-    "Specific fact with number or date",
-    "Specific fact with number or date"
-  ],
-  "players": [
-    {"name": "Person or org name", "role": "Their role", "stance": "Their position on this issue"},
-    {"name": "Person or org name", "role": "Their role", "stance": "Their position on this issue"},
-    {"name": "Person or org name", "role": "Their role", "stance": "Their position on this issue"}
-  ],
-  "views": [
-    {"perspective": "Optimistic view", "argument": "2 sentence argument for this perspective"},
-    {"perspective": "Pessimistic view", "argument": "2 sentence argument for this perspective"}
-  ],
-  "impact": "2-3 sentences on specific measurable consequences — use numbers and timeframes.",
-  "watchNext": [
-    "Specific signal to watch with timeframe",
-    "Specific signal to watch with timeframe",
-    "Specific signal to watch with timeframe"
-  ],
-  "prediction": "One bold, specific, falsifiable prediction with a timeframe.",
-  "confidenceScore": 72
-}`
-
-      const result = await callGroq(
-        [{ role: 'user', content: prompt }],
-        'You are a senior intelligence analyst. Return only valid JSON. No markdown. No explanation. Just the JSON object.'
-      )
-      const data = parseGroqJSON(result) as BriefingData
-      setBriefingData(data)
-
-      const sectionIds = ['summary', 'facts', 'players', 'views', 'impact', 'watchNext', 'prediction']
-      for (let i = 0; i < sectionIds.length; i++) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((r) => setTimeout(r, 180))
-        setSections((prev) => prev.map((s) => (s.id === sectionIds[i] ? { ...s, isLoading: false, content: 'ready' } : s)))
-      }
-      setIsStreaming(false)
-      setShowChat(true)
-      setSavedBriefings((prev) => [{ topic: topic.label, savedAt: new Date().toISOString() }, ...prev.filter((b) => b.topic !== topic.label)].slice(0, 8))
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Briefing failed'
-      // eslint-disable-next-line no-console
-      console.error('[Briefing] Generation error:', message)
-      setSections((prev) => prev.map((s) => ({ ...s, isLoading: false, content: 'error' })))
-      setIsStreaming(false)
-    } finally {
-      // setBriefingLoading(false)
-    }
-  }
-
-  async function handleCustomSearch(query: string) {
-    if (!query.trim()) return
-    const customTopic: TopicCluster = {
-      keyword: query,
-      label: query,
-      category: 'general',
-      color: '#f0a500',
-      articleCount: 0,
-      articles: [],
-      latestTime: new Date().toISOString(),
-      urgency: 'analysis',
-    }
-    try {
-      const res = await fetch(`/api/news?type=search&query=${encodeURIComponent(query)}&pageSize=10&daysBack=14`)
-      const data = (await res.json()) as { articles?: Article[] }
-      customTopic.articles = data.articles || []
-      customTopic.articleCount = customTopic.articles.length
-    } catch {
-      // ignore
-    }
-    await handleTopicSelect(customTopic)
-    setCustomQuery('')
-  }
-
-  async function handleChat(e?: React.FormEvent) {
-    e?.preventDefault()
-    if (!chatInput.trim() || !briefingData || chatLoading) return
-    const userMsg = chatInput.trim()
-    setChatInput('')
-    const newHistory: ChatMessage[] = [...chatMessages, { role: 'user', content: userMsg }]
-    setChatMessages(newHistory)
-    setChatLoading(true)
-    try {
-      const contextStr = `Topic: ${selectedTopic?.label}
-Summary: ${briefingData.summary}
-Key facts: ${briefingData.facts.join('; ')}
-Prediction: ${briefingData.prediction}`
-      const response = await callGroq(
-        newHistory.map((m) => ({ role: m.role, content: m.content })),
-        `You are a senior news analyst for NewsOS. You have just briefed on "${selectedTopic?.label}".
-Context of your briefing: ${contextStr}
-Answer follow-up questions precisely in 2-4 sentences. Use specific numbers and facts. No markdown. Plain text only.`
-      )
-      setChatMessages([...newHistory, { role: 'assistant', content: response }])
-    } catch {
-      setChatMessages([...newHistory, { role: 'assistant', content: 'Error fetching response. Please try again.' }])
-    } finally {
-      setChatLoading(false)
-    }
-  }
+  }, [prefilledTopic])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  function renderSectionContent(section: BriefingSection): React.ReactNode {
-    if (!briefingData) return null
-    switch (section.id) {
-      case 'summary':
-        return (
-          <p style={{ fontSize: 15, lineHeight: 1.8, color: 'rgba(240,237,232,0.85)', margin: 0, fontFamily: 'DM Sans, sans-serif' }}>
-            {briefingData.summary}
-          </p>
-        )
-      case 'facts':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {briefingData.facts.map((fact, i) => (
-              <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: selectedTopic?.color || '#f0a500', flexShrink: 0, marginTop: 3, fontWeight: 700 }}>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <span style={{ fontSize: 14, color: 'rgba(240,237,232,0.82)', lineHeight: 1.6, fontFamily: 'DM Sans, sans-serif' }}>{fact}</span>
-              </motion.div>
-            ))}
-          </div>
-        )
-      case 'players':
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            {briefingData.players.map((player, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 14 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: selectedTopic?.color || '#f0a500', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Playfair Display, serif', fontSize: 16, fontWeight: 700, color: '#000', marginBottom: 10 }}>
-                  {player.name[0]}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ede8', marginBottom: 2, fontFamily: 'DM Sans, sans-serif' }}>{player.name}</div>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: selectedTopic?.color || '#f0a500', letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>
-                  {player.role}
-                </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5, fontFamily: 'DM Sans, sans-serif' }}>{player.stance}</div>
-              </motion.div>
-            ))}
-          </div>
-        )
-      case 'views':
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {briefingData.views.map((view, i) => (
-              <div key={i} style={{ background: i === 0 ? 'rgba(46,196,182,0.06)' : 'rgba(230,57,70,0.06)', border: `1px solid ${i === 0 ? 'rgba(46,196,182,0.2)' : 'rgba(230,57,70,0.2)'}`, borderRadius: 12, padding: 16 }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: i === 0 ? '#2ec4b6' : '#e63946', letterSpacing: '0.15em', marginBottom: 10, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14 }}>{i === 0 ? '↑' : '↓'}</span>
-                  {view.perspective}
-                </div>
-                <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, fontFamily: 'DM Sans, sans-serif' }}>{view.argument}</p>
-              </div>
-            ))}
-          </div>
-        )
-      case 'impact':
-        return (
-          <p style={{ fontSize: 14, lineHeight: 1.8, color: 'rgba(240,237,232,0.82)', margin: 0, fontFamily: 'DM Sans, sans-serif', borderLeft: `3px solid ${selectedTopic?.color || '#f0a500'}`, paddingLeft: 16 }}>
-            {briefingData.impact}
-          </p>
-        )
-      case 'watchNext':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {briefingData.watchNext.map((signal, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: selectedTopic?.color || '#f0a500', flexShrink: 0, animation: 'pulse 2s ease-in-out infinite' }} />
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'DM Sans, sans-serif' }}>{signal}</span>
-              </div>
-            ))}
-          </div>
-        )
-      case 'prediction':
-        return (
-          <div style={{ background: `${selectedTopic?.color || '#f0a500'}08`, border: `1px solid ${selectedTopic?.color || '#f0a500'}30`, borderRadius: 12, padding: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-              <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'rgba(240,237,232,0.9)', fontFamily: 'Playfair Display, serif', fontStyle: 'italic', flex: 1 }}>
-                &quot;{briefingData.prediction}&quot;
-              </p>
-              <div style={{ flexShrink: 0, textAlign: 'center' }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 28, fontWeight: 700, color: selectedTopic?.color || '#f0a500' }}>
-                  {briefingData.confidenceScore}%
-                </div>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.12em', marginTop: 2 }}>
-                  AI CONFIDENCE
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: 12, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em' }}>
-              ⚠ AI PREDICTION — FOR INFORMATIONAL PURPOSES ONLY
-            </div>
-          </div>
-        )
-      default:
-        return null
+  async function handleSearch(query: string) {
+    if (!query.trim()) return
+    setTopicsLoading(true)
+    setActiveTopic(query.trim())
+    setAngles([])
+    setAngleBriefings({})
+    setActiveAngleId(null)
+    setLoadingAngle(null)
+    setChatMessages([])
+    setShowChat(false)
+    setCustomQuery('')
+
+    try {
+      // Try search first with 30 days back
+      let res = await fetch(`/api/news?type=search&query=${encodeURIComponent(query)}&pageSize=20&daysBack=30`)
+      let data = (await res.json()) as { articles?: Article[] }
+      let fetched = data.articles || []
+
+      // Fallback to headlines if search returns nothing
+      if (fetched.length === 0) {
+        res = await fetch(`/api/news?type=headlines&category=business&pageSize=15`)
+        data = (await res.json()) as { articles?: Article[] }
+        fetched = data.articles || []
+      }
+
+      // --- MULTI-TIER FALLBACK STRATEGY ---
+      if (fetched.length === 0) {
+        const q = query.toLowerCase()
+        if (q.includes('budget') || q.includes('union')) {
+          console.log('[Briefing] Using mock budget fallback')
+          fetched = MOCK_BUDGET_ARTICLES as Article[]
+        } else if (q.includes('ipl')) {
+          console.log('[Briefing] Using mock IPL fallback')
+          fetched = MOCK_IPL_ARTICLES as Article[]
+        } else if (q.includes('stock') || q.includes('market') || q.includes('nifty')) {
+          console.log('[Briefing] Using mock Stock Market fallback')
+          fetched = MOCK_STOCK_MARKET_ARTICLES as Article[]
+        } else if (q.includes('war') || q.includes('conflict') || q.includes('iran')) {
+          console.log('[Briefing] Using mock War/Conflict fallback')
+          fetched = MOCK_WAR_ARTICLES as Article[]
+        } else {
+          // Ultimate AI Fallback: Generate synthetic news
+          console.log('[Briefing] Generating synthetic news fallback for:', query)
+          const synthetic = await generateSyntheticArticles(query)
+          fetched = synthetic as Article[]
+        }
+      }
+
+      setArticles(fetched)
+
+      if (fetched.length === 0) {
+        setTopicsLoading(false)
+        return
+      }
+
+      // Generate angle synthesis
+      setSynthesizing(true)
+      const generatedAngles = await generateAngleSynthesis(query, fetched)
+      setAngles(generatedAngles)
+      setSynthesizing(false)
+
+      // Auto-load first angle
+      if (generatedAngles.length > 0) {
+        setActiveAngleId(generatedAngles[0].id)
+        await loadAngleBriefing(generatedAngles[0], fetched, query)
+      }
+    } catch (err) {
+      console.error('[Briefing] Error:', err)
+    } finally {
+      setTopicsLoading(false)
+      setSynthesizing(false)
     }
   }
 
+  async function loadAngleBriefing(angle: SynthesisAngle, arts: Article[], topic: string) {
+    if (angleBriefings[angle.id]) return // already loaded
+    setLoadingAngle(angle.id)
+    try {
+      const briefing = await generateAngleBriefing(angle, arts, topic)
+      setAngleBriefings((prev) => ({ ...prev, [angle.id]: briefing }))
+      setShowChat(true)
+    } catch (err) {
+      console.error('[Briefing] Angle error:', err)
+    } finally {
+      setLoadingAngle(null)
+    }
+  }
+
+  function handleAngleSelect(angle: SynthesisAngle) {
+    setActiveAngleId(angle.id)
+    setChatMessages([])
+    if (!angleBriefings[angle.id]) {
+      void loadAngleBriefing(angle, articles, activeTopic || '')
+    }
+    window.setTimeout(
+      () => briefingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      100
+    )
+  }
+
+  async function handleChat(e?: React.FormEvent) {
+    e?.preventDefault()
+    if (!chatInput.trim() || chatLoading) return
+    const activeAngle = angles.find((a) => a.id === activeAngleId)
+    const activeBriefing = activeAngleId ? angleBriefings[activeAngleId] : null
+    if (!activeAngle || !activeBriefing) return
+
+    const userMsg = chatInput.trim()
+    setChatInput('')
+    const newHistory: ChatMessage[] = [...chatMessages, { role: 'user', content: userMsg }]
+    setChatMessages(newHistory)
+    setChatLoading(true)
+
+    try {
+      const response = await answerWithAngleContext(
+        userMsg,
+        activeBriefing,
+        activeAngle.name,
+        activeTopic || '',
+        newHistory.map((m) => ({ role: m.role, content: m.content }))
+      )
+      setChatMessages([...newHistory, { role: 'assistant', content: response }])
+    } catch {
+      setChatMessages([...newHistory, { role: 'assistant', content: 'Error fetching response.' }])
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
+  const activeAngle = angles.find((a) => a.id === activeAngleId)
+  const activeBriefing = activeAngleId ? angleBriefings[activeAngleId] : null
+  const angleColor = activeAngle?.color || '#f0a500'
+
+  // ── Determine urgency based on freshest article ──
+  const urgency: keyof typeof URGENCY_CONFIG = articles.length > 0
+    ? (() => {
+        const newest = articles.reduce((a, b) =>
+          new Date(a.publishedAt) > new Date(b.publishedAt) ? a : b
+        )
+        const ageH = (Date.now() - new Date(newest.publishedAt).getTime()) / 3600000
+        return ageH < 2 ? 'breaking' : ageH < 12 ? 'developing' : 'analysis'
+      })()
+    : 'analysis'
+
   return (
     <div style={{ minHeight: '100vh', background: '#080c18', color: '#f0ede8', display: 'flex', fontFamily: 'DM Sans, sans-serif' }}>
-      <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0, overflowY: 'auto' }}>
+      {/* ── LEFT SIDEBAR: Topic + Angles ── */}
+      <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', height: '100vh', position: 'sticky', top: 0, overflowY: 'auto' }}>
         <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.2em', marginBottom: 8 }}>
-            INTELLIGENCE UNIT · NEWSОС
+            MULTI-ANGLE SYNTHESIS · NEWSОС
           </div>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 700, margin: 0, color: '#f0ede8' }}>News Navigator</h1>
+          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 700, margin: 0, color: '#f0ede8' }}>
+            Deep Briefing
+          </h1>
           <p style={{ margin: '6px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
-            Select a topic. AI synthesizes all sources into one classified briefing.
+            AI synthesizes multiple articles into angle-based briefings. Ask different questions — get different answers per angle.
           </p>
-          {topicsError ? (
-            <p style={{ margin: '10px 0 0', fontSize: 11, color: 'rgba(240,165,0,0.75)', lineHeight: 1.5 }}>
-              Using fallback topics. API error: {topicsError}
-            </p>
-          ) : null}
         </div>
 
+        {/* Search */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ display: 'flex', gap: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', alignItems: 'center' }}>
             <span style={{ fontSize: 12, opacity: 0.4 }}>⌕</span>
             <input
               value={customQuery}
               onChange={(e) => setCustomQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void handleCustomSearch(customQuery)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleSearch(customQuery)}
               placeholder="Search any topic..."
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 12, color: '#f0ede8', fontFamily: 'DM Sans, sans-serif' }}
             />
             {customQuery ? (
-              <button onClick={() => void handleCustomSearch(customQuery)} style={{ background: '#f0a500', border: 'none', borderRadius: 4, padding: '2px 8px', fontSize: 10, color: '#000', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+              <button onClick={() => void handleSearch(customQuery)} style={{ background: '#f0a500', border: 'none', borderRadius: 4, padding: '2px 8px', fontSize: 10, color: '#000', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
                 GO
               </button>
             ) : null}
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
-          {topicsLoading ? (
-            <div style={{ padding: '20px 16px' }}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} style={{ height: 72, borderRadius: 10, background: 'rgba(255,255,255,0.04)', marginBottom: 8, animation: 'shimmer 1.5s ease-in-out infinite' }} />
-              ))}
+        {/* Suggested Topics */}
+        {!activeTopic && (
+          <div style={{ padding: '16px' }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.12em', marginBottom: 12 }}>
+              SUGGESTED TOPICS
             </div>
-          ) : (
-            topics.map((topic, i) => {
-              const urgency = URGENCY_CONFIG[topic.urgency]
-              const isSelected = selectedTopic?.keyword === topic.keyword
-              return (
-                <motion.button
-                  key={topic.keyword}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  onClick={() => void handleTopicSelect(topic)}
-                  style={{ width: '100%', background: isSelected ? `${topic.color}12` : 'transparent', border: 'none', borderLeft: `3px solid ${isSelected ? topic.color : 'transparent'}`, padding: '12px 16px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: 4 }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: urgency.color, letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {urgency.pulse ? <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: urgency.color, animation: 'pulse 1s ease-in-out infinite' }} /> : null}
-                      {urgency.label}
-                    </span>
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>{timeAgo(topic.latestTime)}</span>
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? topic.color : '#f0ede8', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.3, transition: 'color 0.2s' }}>
-                    {topic.label}
-                  </div>
-                  {topic.articleCount > 0 ? (
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>
-                      {topic.articleCount} source{topic.articleCount !== 1 ? 's' : ''} synthesized
-                    </div>
-                  ) : null}
-                </motion.button>
-              )
-            })
-          )}
-        </div>
-
-        {savedBriefings.length > 0 ? (
-          <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.12em', marginBottom: 8 }}>RECENT BRIEFINGS</div>
-            {savedBriefings.slice(0, 4).map((b) => (
-              <button key={b.topic} onClick={() => void handleCustomSearch(b.topic)} style={{ display: 'block', width: '100%', background: 'transparent', border: 'none', textAlign: 'left', padding: '5px 0', fontSize: 11, color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                ⟳ {b.topic}
+            {SUGGESTED_TOPICS.map((t) => (
+              <button
+                key={t.query}
+                onClick={() => void handleSearch(t.query)}
+                style={{ display: 'block', width: '100%', background: `${t.color}0a`, border: `1px solid ${t.color}25`, borderRadius: 10, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.color, fontFamily: 'DM Sans, sans-serif' }}>
+                  {t.label}
+                </div>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+                  Multi-angle synthesis →
+                </div>
               </button>
             ))}
           </div>
-        ) : null}
+        )}
+
+        {/* Angle Tabs */}
+        {angles.length > 0 && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
+            <div style={{ padding: '0 16px 8px', fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.12em', display: 'flex', justifyContent: 'space-between' }}>
+              <span>ANGLES OF COVERAGE</span>
+              <span>{articles.length} SOURCES</span>
+            </div>
+            {angles.map((angle, i) => {
+              const isActive = activeAngleId === angle.id
+              const isLoaded = !!angleBriefings[angle.id]
+              const isThisLoading = loadingAngle === angle.id
+              return (
+                <motion.button
+                  key={angle.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  onClick={() => handleAngleSelect(angle)}
+                  style={{
+                    width: '100%',
+                    background: isActive ? `${angle.color}12` : 'transparent',
+                    border: 'none',
+                    borderLeft: `3px solid ${isActive ? angle.color : 'transparent'}`,
+                    padding: '12px 16px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 16 }}>{angle.icon}</span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: isLoaded ? '#2ec4b6' : 'rgba(255,255,255,0.2)' }}>
+                      {isThisLoading ? '⟳ LOADING' : isLoaded ? '✓ READY' : `${angle.articleCount} articles`}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? angle.color : '#f0ede8', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.3 }}>
+                    {angle.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4, fontFamily: 'DM Sans, sans-serif' }}>
+                    {angle.description}
+                  </div>
+                </motion.button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Loading state */}
+        {(topicsLoading || synthesizing) && (
+          <div style={{ padding: '20px 16px' }}>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} style={{ height: 72, borderRadius: 10, background: 'rgba(255,255,255,0.04)', marginBottom: 8, animation: 'shimmer 1.5s ease-in-out infinite' }} />
+            ))}
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f0a500', textAlign: 'center', marginTop: 8, letterSpacing: '0.1em' }}>
+              {synthesizing ? 'CLUSTERING ARTICLES INTO ANGLES...' : 'FETCHING ARTICLES...'}
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* ── MAIN CONTENT ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {!selectedTopic ? (
+        {!activeTopic ? (
+          // Empty state
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 48 }}>
             <div style={{ width: 80, height: 80, borderRadius: '50%', border: '1px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>≡</div>
             <div style={{ textAlign: 'center' }}>
-              <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: '#f0ede8', margin: '0 0 8px' }}>Select a topic to brief</h2>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', maxWidth: 400, lineHeight: 1.6 }}>
-                Choose from today&apos;s live topics on the left, or search any topic. The AI will synthesize multiple sources into one classified briefing you can interact with.
+              <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: '#f0ede8', margin: '0 0 8px' }}>Multi-Angle Synthesis</h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', maxWidth: 500, lineHeight: 1.6 }}>
+                Search a topic like &quot;Union Budget India&quot;. AI will fetch 20+ articles, cluster them into angles
+                (Macro Impact, Sector Winners, Expert Commentary...), and generate distinct briefings.
+                Ask different questions per angle — get non-overlapping answers.
               </p>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 500 }}>
-              {['RBI rate cut', 'India startup ecosystem', 'Geopolitical tensions', 'Nifty outlook'].map((q) => (
-                <button key={q} onClick={() => void handleCustomSearch(q)} style={{ background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 20, padding: '8px 16px', fontSize: 12, color: '#f0a500', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
-                  {q} →
-                </button>
-              ))}
             </div>
           </div>
         ) : (
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            {/* Briefing content */}
             <div ref={briefingRef} style={{ flex: 1, overflowY: 'auto', padding: '32px 40px' }}>
-              <div style={{ marginBottom: 32, paddingBottom: 24, borderBottom: `1px solid ${selectedTopic.color}30` }}>
+              {/* Header */}
+              <div style={{ marginBottom: 32, paddingBottom: 24, borderBottom: `1px solid ${angleColor}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: URGENCY_CONFIG[selectedTopic.urgency].color, letterSpacing: '0.15em', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    {selectedTopic.urgency === 'breaking' ? <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: URGENCY_CONFIG[selectedTopic.urgency].color, animation: 'pulse 1s ease-in-out infinite' }} /> : null}
-                    {URGENCY_CONFIG[selectedTopic.urgency].label}
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: URGENCY_CONFIG[urgency].color, letterSpacing: '0.15em', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {urgency === 'breaking' && <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: URGENCY_CONFIG[urgency].color, animation: 'pulse 1s ease-in-out infinite' }} />}
+                    {URGENCY_CONFIG[urgency].label}
                   </span>
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>·</span>
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em' }}>
-                    NEWSОС INTELLIGENCE · {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                    {articles.length} SOURCES SYNTHESIZED · {angles.length} ANGLES
                   </span>
-                  {selectedTopic.articleCount > 0 ? <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: selectedTopic.color, letterSpacing: '0.1em' }}>· {selectedTopic.articleCount} SOURCES SYNTHESIZED</span> : null}
                 </div>
-                <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 36, fontWeight: 700, color: '#f0ede8', margin: '0 0 8px', lineHeight: 1.2 }}>{selectedTopic.label}</h1>
-                {isStreaming ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: selectedTopic.color, letterSpacing: '0.1em' }}>
-                    <div style={{ display: 'flex', gap: 3 }}>
-                      {[0, 1, 2].map((i) => (
-                        <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: selectedTopic.color, animation: `bounce 0.8s ease-in-out ${i * 0.15}s infinite alternate` }} />
-                      ))}
-                    </div>
-                    ASSEMBLING INTELLIGENCE BRIEFING...
+                <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 36, fontWeight: 700, color: '#f0ede8', margin: '0 0 8px', lineHeight: 1.2 }}>
+                  {activeTopic}
+                </h1>
+                {activeAngle && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                    <span style={{ fontSize: 20 }}>{activeAngle.icon}</span>
+                    <span style={{ fontSize: 16, fontWeight: 600, color: angleColor, fontFamily: 'DM Sans, sans-serif' }}>
+                      {activeAngle.name}
+                    </span>
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em' }}>
+                      · {activeAngle.articleCount} ARTICLES IN THIS ANGLE
+                    </span>
                   </div>
-                ) : null}
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {sections.map((section, i) => {
-                  const template = SECTION_TEMPLATES.find((t) => t.id === section.id)
-                  const isExpanded = expandedSections.has(section.id)
-                  const isActive = activeSection === section.id
-                  return (
-                    <motion.div key={section.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: section.isLoading ? 0.5 : 1, y: 0 }} transition={{ delay: i * 0.05 }} style={{ background: isActive ? `${selectedTopic.color}08` : 'rgba(255,255,255,0.02)', border: `1px solid ${isActive ? selectedTopic.color + '30' : 'rgba(255,255,255,0.07)'}`, borderRadius: 12, overflow: 'hidden', transition: 'all 0.3s' }}>
-                      <button
-                        onClick={() => {
-                          setExpandedSections((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(section.id)) next.delete(section.id)
-                            else next.add(section.id)
-                            return next
-                          })
-                          setActiveSection(section.id)
-                        }}
-                        style={{ width: '100%', background: 'transparent', border: 'none', padding: '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, color: selectedTopic.color }}>{template?.icon}</span>
-                          <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 600, color: '#f0ede8' }}>{template?.title}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {section.isLoading ? (
-                            <div style={{ width: 12, height: 12, border: `2px solid ${selectedTopic.color}40`, borderTop: `2px solid ${selectedTopic.color}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setActiveSection(section.id)
-                                setShowChat(true)
-                                setChatInput(`Tell me more about the "${template?.title}" section`)
-                              }}
-                              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '3px 8px', fontSize: 9, color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em' }}
-                            >
-                              ASK
-                            </button>
-                          )}
-                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', display: 'inline-block' }}>
-                            ▾
-                          </span>
-                        </div>
-                      </button>
+              {/* No articles message */}
+              {articles.length === 0 && !topicsLoading && !synthesizing && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 48, textAlign: 'center' }}>
+                  <div style={{ fontSize: 32 }}>📭</div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: '#f0ede8' }}>No articles found for this topic</div>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', maxWidth: 400, lineHeight: 1.6 }}>
+                    Try a broader search term like &quot;India economy&quot;, &quot;stock market&quot;, or &quot;RBI policy&quot;.
+                    NewsAPI free tier has limited coverage of older events.
+                  </p>
+                </div>
+              )}
 
-                      <AnimatePresence>
-                        {isExpanded && !section.isLoading && briefingData ? (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} style={{ padding: '0 20px 20px', overflow: 'hidden' }}>
-                            {renderSectionContent(section)}
-                          </motion.div>
-                        ) : null}
-                      </AnimatePresence>
-                    </motion.div>
-                  )
-                })}
-              </div>
-
-              {selectedTopic.articles.length > 0 && briefingData ? (
-                <div style={{ marginTop: 32 }}>
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.15em', marginBottom: 14 }}>
-                    SOURCE ARTICLES ({selectedTopic.articles.length})
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {selectedTopic.articles.slice(0, 5).map((article, i) => (
-                      <a key={i} href={article.url} target="_blank" rel="noreferrer" style={{ display: 'flex', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, textDecoration: 'none', alignItems: 'center', transition: 'all 0.2s' }}>
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: selectedTopic.color, minWidth: 20 }}>{i + 1}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontFamily: 'DM Sans, sans-serif', lineHeight: 1.4 }}>{article.title}</div>
-                          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
-                            {article.source.name} · {timeAgo(article.publishedAt)}
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>↗</span>
-                      </a>
+              {/* Synthesizing state */}
+              {synthesizing && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 48 }}>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500', animation: `bounce 0.8s ease-in-out ${i * 0.15}s infinite alternate` }} />
                     ))}
                   </div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#f0a500', letterSpacing: '0.1em' }}>
+                    CLUSTERING {articles.length} ARTICLES INTO ANGLES...
+                  </div>
+                </div>
+              )}
+
+              {/* Angle briefing content */}
+              {loadingAngle !== null && loadingAngle === activeAngleId ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 48 }}>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: angleColor, animation: `bounce 0.8s ease-in-out ${i * 0.15}s infinite alternate` }} />
+                    ))}
+                  </div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: angleColor, letterSpacing: '0.1em' }}>
+                    GENERATING &quot;{activeAngle?.name}&quot; BRIEFING...
+                  </div>
+                </div>
+              ) : activeBriefing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Summary Section */}
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20 }}>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor, letterSpacing: '0.15em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 14 }}>◉</span> SITUATION SUMMARY
+                    </div>
+                    <p style={{ fontSize: 15, lineHeight: 1.8, color: 'rgba(240,237,232,0.85)', margin: 0 }}>
+                      {activeBriefing.summary}
+                    </p>
+                  </motion.div>
+
+                  {/* Key Points */}
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20 }}>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor, letterSpacing: '0.15em', marginBottom: 10 }}>
+                      ≡ KEY INTELLIGENCE
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {activeBriefing.keyPoints.map((point, i) => (
+                        <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: angleColor, flexShrink: 0, marginTop: 3, fontWeight: 700 }}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
+                          <span style={{ fontSize: 14, color: 'rgba(240,237,232,0.82)', lineHeight: 1.6 }}>{point}</span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+
+                  {/* Data Points */}
+                  {activeBriefing.dataPoints.length > 0 && (
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20 }}>
+                      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor, letterSpacing: '0.15em', marginBottom: 14 }}>
+                        📊 DATA POINTS
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+                        {activeBriefing.dataPoints.map((dp, i) => (
+                          <div key={i} style={{ background: `${dp.sentiment === 'positive' ? '#2ec4b6' : dp.sentiment === 'negative' ? '#e63946' : '#9c9a92'}0a`, border: `1px solid ${dp.sentiment === 'positive' ? '#2ec4b6' : dp.sentiment === 'negative' ? '#e63946' : '#9c9a92'}25`, borderRadius: 10, padding: 14 }}>
+                            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' }}>{dp.label}</div>
+                            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700, color: '#f0ede8', marginTop: 4 }}>{dp.value}</div>
+                            {dp.change && (
+                              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: dp.sentiment === 'positive' ? '#2ec4b6' : dp.sentiment === 'negative' ? '#e63946' : '#9c9a92', marginTop: 2 }}>
+                                {dp.change}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Expert Quotes */}
+                  {activeBriefing.expertQuotes.length > 0 && (
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20 }}>
+                      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor, letterSpacing: '0.15em', marginBottom: 14 }}>
+                        ◈ EXPERT COMMENTARY
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {activeBriefing.expertQuotes.map((eq, i) => (
+                          <div key={i} style={{ background: `${angleColor}08`, border: `1px solid ${angleColor}20`, borderRadius: 10, padding: 16 }}>
+                            <p style={{ margin: '0 0 10px', fontSize: 14, lineHeight: 1.7, color: 'rgba(240,237,232,0.9)', fontStyle: 'italic', fontFamily: 'Playfair Display, serif' }}>
+                              &quot;{eq.quote}&quot;
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 28, height: 28, borderRadius: '50%', background: angleColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#000' }}>
+                                {eq.speaker[0]}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#f0ede8' }}>{eq.speaker}</div>
+                                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor }}>{eq.role}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Implications */}
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20 }}>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor, letterSpacing: '0.15em', marginBottom: 10 }}>
+                      ⚡ IMPLICATIONS
+                    </div>
+                    <p style={{ fontSize: 14, lineHeight: 1.8, color: 'rgba(240,237,232,0.82)', margin: 0, borderLeft: `3px solid ${angleColor}`, paddingLeft: 16 }}>
+                      {activeBriefing.implications}
+                    </p>
+                  </motion.div>
+
+                  {/* Source articles for this angle */}
+                  {activeAngle && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.15em', marginBottom: 14 }}>
+                        SOURCE ARTICLES ({activeAngle.articleCount})
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {activeAngle.articleIndices.map((idx) => {
+                          const article = articles[idx]
+                          if (!article) return null
+                          return (
+                            <a key={idx} href={article.url} target="_blank" rel="noreferrer" style={{ display: 'flex', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, textDecoration: 'none', alignItems: 'center' }}>
+                              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: angleColor, minWidth: 20 }}>{idx + 1}</span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>{article.title}</div>
+                                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>
+                                  {article.source.name} · {timeAgo(article.publishedAt)}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>↗</span>
+                            </a>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
 
+            {/* ── CHAT PANEL ── */}
             <AnimatePresence>
-              {showChat ? (
+              {showChat && activeBriefing ? (
                 <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: 320, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: 'spring', damping: 30, stiffness: 300 }} style={{ borderLeft: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: selectedTopic.color, letterSpacing: '0.15em', marginBottom: 4 }}>AI ANALYST</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ede8', fontFamily: 'DM Sans, sans-serif' }}>Ask anything about this briefing</div>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: angleColor, letterSpacing: '0.15em', marginBottom: 4 }}>
+                      ANGLE-AWARE ANALYST
+                    </div>
+                    <div style={{ fontSize: 12, color: '#f0ede8' }}>
+                      Ask about <strong style={{ color: angleColor }}>{activeAngle?.name}</strong>
+                    </div>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                      Answers stay within this angle — switch angles for different perspectives
+                    </div>
                   </div>
 
-                  {chatMessages.length === 0 ? (
+                  {chatMessages.length === 0 && (
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', marginBottom: 8 }}>QUICK QUESTIONS</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {['Explain this simply', 'Historical context?', 'How does this affect me?', 'What are the risks?', 'Timeline of events?'].map((q) => (
-                          <button key={q} onClick={() => setChatInput(q)} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${selectedTopic.color}25`, borderRadius: 6, padding: '7px 10px', fontSize: 11, color: 'rgba(255,255,255,0.65)', cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.2s' }}>
+                        {[
+                          'What does this mean for IT stocks?',
+                          'What do economists think?',
+                          'How does this affect retail investors?',
+                          'Historical comparison?',
+                          'What are the risks?',
+                        ].map((q) => (
+                          <button key={q} onClick={() => { setChatInput(q) }} style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${angleColor}25`, borderRadius: 6, padding: '7px 10px', fontSize: 11, color: 'rgba(255,255,255,0.65)', cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif' }}>
                             {q}
                           </button>
                         ))}
                       </div>
                     </div>
-                  ) : null}
+                  )}
 
                   <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {chatMessages.map((msg, i) => (
                       <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: msg.role === 'user' ? selectedTopic.color : 'rgba(255,255,255,0.3)', letterSpacing: '0.1em' }}>
-                          {msg.role === 'user' ? 'YOU' : 'ANALYST'}
+                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: msg.role === 'user' ? angleColor : 'rgba(255,255,255,0.3)', letterSpacing: '0.1em' }}>
+                          {msg.role === 'user' ? 'YOU' : `${activeAngle?.name?.toUpperCase()} ANALYST`}
                         </span>
-                        <div style={{ background: msg.role === 'user' ? `${selectedTopic.color}15` : 'rgba(255,255,255,0.05)', border: `1px solid ${msg.role === 'user' ? selectedTopic.color + '30' : 'rgba(255,255,255,0.08)'}`, borderRadius: msg.role === 'user' ? '10px 10px 2px 10px' : '2px 10px 10px 10px', padding: '9px 12px', maxWidth: '90%' }}>
-                          <p style={{ margin: 0, fontSize: 12, color: 'rgba(240,237,232,0.85)', lineHeight: 1.6, fontFamily: 'DM Sans, sans-serif' }}>{msg.content}</p>
+                        <div style={{ background: msg.role === 'user' ? `${angleColor}15` : 'rgba(255,255,255,0.05)', border: `1px solid ${msg.role === 'user' ? angleColor + '30' : 'rgba(255,255,255,0.08)'}`, borderRadius: msg.role === 'user' ? '10px 10px 2px 10px' : '2px 10px 10px 10px', padding: '9px 12px', maxWidth: '90%' }}>
+                          <p style={{ margin: 0, fontSize: 12, color: 'rgba(240,237,232,0.85)', lineHeight: 1.6 }}>{msg.content}</p>
                         </div>
                       </div>
                     ))}
-                    {chatLoading ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
-                        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em' }}>ANALYST</span>
-                        <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px 10px 10px 10px', padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {[0, 1, 2].map((i) => (
-                              <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: selectedTopic.color, animation: `bounce 0.7s ease-in-out ${i * 0.12}s infinite alternate` }} />
-                            ))}
-                          </div>
-                        </div>
+                    {chatLoading && (
+                      <div style={{ display: 'flex', gap: 4, padding: '10px 14px' }}>
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: angleColor, animation: `bounce 0.7s ease-in-out ${i * 0.12}s infinite alternate` }} />
+                        ))}
                       </div>
-                    ) : null}
+                    )}
                     <div ref={chatEndRef} />
                   </div>
 
                   <form onSubmit={(e) => void handleChat(e)} style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0, display: 'flex', gap: 8 }}>
-                    <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask the analyst..." style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: `1px solid ${selectedTopic.color}30`, borderRadius: 8, padding: '9px 12px', fontSize: 12, color: '#f0ede8', outline: 'none', fontFamily: 'DM Sans, sans-serif' }} />
-                    <button type="submit" disabled={!chatInput.trim() || chatLoading} style={{ background: chatInput.trim() ? selectedTopic.color : 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: chatInput.trim() ? 'pointer' : 'not-allowed', fontSize: 14, color: chatInput.trim() ? '#000' : 'rgba(255,255,255,0.3)', transition: 'all 0.2s', flexShrink: 0 }}>
+                    <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder={`Ask about ${activeAngle?.name || 'this angle'}...`} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: `1px solid ${angleColor}30`, borderRadius: 8, padding: '9px 12px', fontSize: 12, color: '#f0ede8', outline: 'none', fontFamily: 'DM Sans, sans-serif' }} />
+                    <button type="submit" disabled={!chatInput.trim() || chatLoading} style={{ background: chatInput.trim() ? angleColor : 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: chatInput.trim() ? 'pointer' : 'not-allowed', fontSize: 14, color: chatInput.trim() ? '#000' : 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
                       →
                     </button>
                   </form>

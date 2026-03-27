@@ -12,6 +12,7 @@ import { VideoStudio } from './pages/VideoStudio'
 import { ArcTracker } from './pages/ArcTracker'
 import { Vernacular } from './pages/Vernacular'
 import CharchaPage from './pages/Charcha'
+import { PersonaDemo } from './pages/PersonaDemo'
 import { useNewsStore } from './store/useNewsStore'
 import { fetchTopHeadlines } from './services/newsapi'
 
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="arc" element={<ArcTracker />} />
           <Route path="vernacular" element={<Vernacular />} />
           <Route path="charcha" element={<CharchaPage />} />
+          <Route path="persona-demo" element={<PersonaDemo />} />
         </Route>
       </Routes>
     </BrowserRouter>

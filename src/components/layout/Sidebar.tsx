@@ -11,6 +11,7 @@ const links = [
   { to: '/video', label: 'Video Studio', icon: '▷' },
   { to: '/arc', label: 'Arc Tracker', icon: '⤴' },
   { to: '/vernacular', label: 'Vernacular', icon: 'भ' },
+  { to: '/persona-demo', label: 'Persona Demo', icon: '⚡' },
 ]
 
 export function Sidebar() {

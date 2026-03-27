@@ -178,10 +178,11 @@ app.get('/api/news', async (req, res) => {
         a.title !== '[Removed]' &&
         a.description &&
         a.description !== '[Removed]' &&
-        a.urlToImage
+        // Only require images for headline/dashboard views, not for synthesis/arc
+        (type === 'search' || type === 'arc' || a.urlToImage)
     )
 
-    console.log(`[NEWS] Got ${articles.length} valid articles`)
+    console.log(`[NEWS] Got ${articles.length} valid articles (type=${type})`)
     res.json({ articles, totalResults: articles.length, fetchedAt: new Date().toISOString() })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'News fetch failed'
@@ -804,7 +805,51 @@ app.post('/api/briefings', requireUser, async (req, res) => {
   }
 })
 
+// Challenge 3: Get the latest breaking article for instant Hindi video pipeline
+app.get('/api/breaking/latest', async (_req, res) => {
+  if (!NEWS_KEY || NEWS_KEY.startsWith('your_')) {
+    res.status(500).json({ error: 'NEWSAPI_KEY not configured' })
+    return
+  }
+  try {
+    const url = `https://newsapi.org/v2/top-headlines?country=in&category=business&pageSize=5&apiKey=${NEWS_KEY}`
+    const response = await fetch(url)
+    const data = (await response.json()) as {
+      status?: string
+      articles?: Array<{
+        title?: string
+        description?: string
+        content?: string
+        urlToImage?: string
+        url?: string
+        source?: { name?: string }
+        publishedAt?: string
+      }>
+    }
+    if (data.status === 'error') {
+      res.status(400).json({ error: 'NewsAPI error' })
+      return
+    }
+    const articles = (data.articles || []).filter(
+      (a) => a.title && a.title !== '[Removed]' && a.description && a.description !== '[Removed]'
+    )
+    if (articles.length === 0) {
+      res.status(404).json({ error: 'No breaking articles found' })
+      return
+    }
+    // Return the most recent valid article
+    res.json({
+      article: articles[0],
+      fetchedAt: new Date().toISOString(),
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch breaking article'
+    res.status(500).json({ error: message })
+  }
+})
+
 const port = Number(process.env.API_PORT) || 3001
 app.listen(port, () => {
   console.log(`NewsOS API listening on http://localhost:${port}`)
 })
+
