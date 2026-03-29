@@ -1,105 +1,127 @@
-# React + TypeScript + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+```md
+# NewsOS
 
-Currently, two official plugins are available:
+AI-native newsroom platform built with **React + TypeScript + Vite** (frontend) and **Express + PostgreSQL** (backend), focused on personalized news intelligence, multi-angle analysis, vernacular adaptation, and AI-assisted briefing/video workflows.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Highlights
 
-## React Compiler
+- Persona-based experience (`trader`, `founder`, `learner`)
+- Real-time news ingestion (NewsAPI with GNews fallback)
+- AI briefing generation with structured outputs
+- Story Arc analysis (timeline, players, risk/catalyst signals)
+- Vernacular translation + glossary generation
+- Charcha mode with dual AI voices (Riya & Arjun)
+- Video workflow support (script + Veo endpoint path)
+- JWT auth, profile preferences, and saved briefings
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Video Generation Feature
+- **Frontend:** React 19, TypeScript, Vite, Zustand, TanStack Query, Tailwind
+- **Backend:** Node.js, Express, PostgreSQL (`pg`)
+- **AI/Integrations:** Groq, NewsAPI, GNews, Yahoo Finance, Google GenAI, optional ElevenLabs
+- **Tooling:** ESLint, PostCSS, TypeScript build mode
 
-This project includes integration with Google's Veo 3.1 model for AI-powered video generation. The feature allows generating videos from text prompts or news articles.
+## Project Structure
 
-### Usage
-
-#### Service Layer
-The video generation service is located in `src/services/video.ts` and provides two main functions:
-
-1. `generateVideo(prompt: string): Promise<Buffer>` - Generate video from a text prompt
-2. `generateVideoFromArticle(article: NewsArticle): Promise<Buffer>` - Generate video based on a news article
-
-#### API Endpoint
-A REST API endpoint is available at `/api/video` that accepts POST requests with either:
-- `{ "prompt": "your video description here" }`
-- `{ "article": { /* NewsArticle object */ } }`
-
-The endpoint returns the generated video as an MP4 file download.
-
-### Environment Setup
-
-To use the video generation feature, you need to set up Google API credentials:
-
-1. Obtain a Google AI API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Add the API key to your environment variables:
-   - For development: Add `VITE_GOOGLE_API_KEY=your_api_key_here` to your `.env` file
-   - For production: Set `GOOGLE_API_KEY` in your server environment
-
-### Dependencies
-
-The feature requires the `@google/genai` package, which is already included in the project dependencies.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```txt
+newsos/
+  src/                  # React frontend (pages, components, stores, services)
+  server/               # Express API server
+  api/                  # Serverless-style handlers (deployment alternative)
+  public/               # Static assets (Lottie etc.)
+  package.json
+  vite.config.ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Core Features
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 1) Personalized News Intelligence
+Tailors framing, depth, and relevance based on persona profile and user preferences.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2) Multi-Source News Engine
+Fetches headlines/search from NewsAPI, automatically falls back to GNews when needed.
+
+### 3) AI Briefing Studio
+Generates structured briefings with facts, players, opposing views, impact, and watch-next signals.
+
+### 4) Arc Tracker
+Builds full story arcs with sentiment evolution, risk factors, catalysts, and data-backed predictions.
+
+### 5) Vernacular Pipeline
+Translates and culturally adapts stories into Indian languages with glossary support.
+
+### 6) Charcha (Debate Mode)
+Interactive dual-agent conversation experience:
+- **Riya**: energetic analyst
+- **Arjun**: devil’s advocate journalist
+
+### 7) Video Studio
+Creates AI-friendly video script pipelines and supports Veo render endpoint integration.
+
+## API Overview (Express)
+
+- `POST /api/groq`
+- `GET /api/news`
+- `GET /api/vernacular/news`
+- `POST /api/vernacular/translate`
+- `POST /api/vernacular/glossary`
+- `GET /api/arc/articles`
+- `GET /api/arc/market-data`
+- `POST /api/arc/custom-chart`
+- `POST /api/arc/full-analysis`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/profile`
+- `GET /api/briefings`
+- `POST /api/briefings`
+- `POST /api/video/veo`
+
+## Local Development
+
+### Prerequisites
+- Node.js 18+
+- npm
+- PostgreSQL (optional but recommended for auth/profile/briefings persistence)
+
+### Install
+```bash
+npm install
+```
+
+### Environment
+Create `.env.local` (or `.env`) with required keys:
+
+```env
+API_PORT=3001
+JWT_SECRET=your_jwt_secret
+DATABASE_URL=your_postgres_url
+GROQ_API_KEY=your_groq_key
+NEWSAPI_KEY=your_newsapi_key
+GNEWS_API_KEY=your_gnews_key
+GOOGLE_API_KEY=your_google_ai_key
+VITE_ELEVENLABS_KEY=optional
+```
+
+### Run
+```bash
+npm run dev
+```
+
+- Frontend: `http://localhost:5173`
+- API: `http://localhost:3001`
+
+### Build
+```bash
+npm run build
+npm run preview
+```
+
+## Security Notes
+
+- Do **not** commit `.env.local` or API keys.
+- Rotate keys immediately if exposed.
+- Set a strong `JWT_SECRET` in production.
+- Restrict CORS and harden auth before public deployment.
 ```
