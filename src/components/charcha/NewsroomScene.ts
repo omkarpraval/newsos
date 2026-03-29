@@ -23,9 +23,12 @@ export class NewsroomScene {
   private particleGeo?: THREE.BufferGeometry
   private particleCount = 220
   private ledStrips: Array<{ mesh: THREE.Mesh; baseColor: number }> = []
+  private hudGroup = new THREE.Group()
+  private scanlineMat?: THREE.MeshBasicMaterial
   public botRiya?: BotCharacter
   public botArjun?: BotCharacter
   public nearestPoster: NewsPoster | null = null
+  private activePoster: NewsPoster | null = null
 
   constructor(container: HTMLElement, newsData: Record<string, Article[]>) {
     this.container = container
@@ -40,8 +43,21 @@ export class NewsroomScene {
     await this.placeNewsPosters()
     this.placeBots()
     this.setupController()
+    this.setupHUD()
     this.startRenderLoop()
     this.handleResize()
+    window.addEventListener('mousedown', this.handleMouseClick)
+  }
+
+  private handleMouseClick = () => {
+    if (document.pointerLockElement !== this.renderer.domElement) return
+    if (this.lastGazedPoster) {
+      window.dispatchEvent(
+        new CustomEvent('charcha:click', {
+          detail: { article: this.lastGazedPoster.article },
+        })
+      )
+    }
   }
 
   private setupRenderer() {
@@ -277,6 +293,67 @@ export class NewsroomScene {
     this.scene.add(this.particles)
   }
 
+  private setupHUD() {
+    // Holographic HUD fixed to camera
+    this.hudGroup = new THREE.Group()
+    this.camera.add(this.hudGroup)
+    this.scene.add(this.camera) // Ensure camera with HUD is in scene
+
+    // Digital Scanlines / HUD Vignette
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = 'rgba(0, 20, 40, 0.1)'
+    ctx.fillRect(0, 0, 512, 512)
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)'
+    ctx.lineWidth = 2
+    for (let i = 0; i < 512; i += 8) {
+      ctx.beginPath()
+      ctx.moveTo(0, i)
+      ctx.lineTo(512, i)
+      ctx.stroke()
+    }
+    const noiseTex = new THREE.CanvasTexture(canvas)
+    noiseTex.wrapS = noiseTex.wrapT = THREE.RepeatWrapping
+
+    this.scanlineMat = new THREE.MeshBasicMaterial({
+      map: noiseTex,
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+    })
+
+    const hudPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.scanlineMat)
+    hudPlane.position.z = -0.1 // Just in front of lens
+    hudPlane.scale.set(0.4, 0.3, 1) // Fit aspect roughly
+    this.hudGroup.add(hudPlane)
+
+    // Corner brackets
+    const bracketMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, depthTest: false })
+    for (let i = 0; i < 4; i++) {
+        const b = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.002), bracketMat)
+        const x = i < 2 ? -0.15 : 0.15
+        const y = i % 2 === 0 ? 0.08 : -0.08
+        b.position.set(x, y, -0.1)
+        this.hudGroup.add(b)
+        const bv = new THREE.Mesh(new THREE.PlaneGeometry(0.002, 0.02), bracketMat)
+        bv.position.set(x + (x > 0 ? -0.01 : 0.01), y + (y > 0 ? -0.01 : 0.01), -0.1)
+        this.hudGroup.add(bv)
+    }
+  }
+
+  private updateHandheldCamera() {
+    // Immersive camera bobbing/shake
+    const time = this.clock.getElapsedTime()
+    this.camera.position.y += Math.sin(time * 0.8) * 0.0003
+    this.camera.position.x += Math.cos(time * 0.5) * 0.0002
+    
+    // Slight roll
+    this.camera.rotation.z = Math.sin(time * 0.4) * 0.002
+  }
+
   async placeNewsPosters() {
     const wallZones = [
       { zoneId: 'business', zoneColor: 0xf0a500, wallZ: -10.5, wallRotY: 0, xPositions: [-6, -2, 2, 6] },
@@ -293,6 +370,7 @@ export class NewsroomScene {
       for (let i = 0; i < Math.min(positions.length, articles.length); i++) {
         const poster = new NewsPoster(this.scene, textureLoader, articles[i], positions[i], wall.wallRotY, wall.zoneColor)
         await poster.init()
+        poster.zoneId = wall.zoneId
         this.posters.push(poster)
       }
     }
@@ -328,6 +406,8 @@ export class NewsroomScene {
       const delta = this.clock.getDelta()
       this.controller.update(delta)
       this.updateNearestPoster()
+      this.updateHandheldCamera()
+      
       const nearestPos = this.nearestPoster?.position
       const playerPos = this.camera.position
       const playerYaw = this.camera.rotation.y
@@ -335,27 +415,57 @@ export class NewsroomScene {
       this.botArjun?.followPlayer(playerPos, playerYaw, delta)
       this.bots.forEach((bot) => bot.update(delta, nearestPos, playerPos))
       this.posters.forEach((p) => p.update())
+      this.updateActivePoster(delta)
       this.updateParticles(delta)
       this.updateGaze(delta)
+      this.updateLeds()
+      if (this.scanlineMat?.map) this.scanlineMat.map.offset.y -= delta * 0.2
       this.renderer.render(this.scene, this.camera)
     }
     animate()
+  }
+
+  private updateLeds() {
+    const time = this.clock.getElapsedTime()
+    this.ledStrips.forEach((strip, i) => {
+      const pulse = 0.5 + Math.sin(time * 2 + i) * 0.5
+      const mat = strip.mesh.material as THREE.MeshStandardMaterial
+      mat.emissiveIntensity = 1.0 + pulse * 2.0
+    })
   }
 
   private updateNearestPoster() {
     let minDist = Infinity
     let nearest: NewsPoster | null = null
     this.posters.forEach((poster) => {
-      poster.setHighlighted(false)
+      if (poster !== this.activePoster) poster.setHighlighted(false)
       const dist = this.camera.position.distanceTo(poster.position)
       if (dist < minDist) {
         minDist = dist
         nearest = poster
       }
     })
-    const nearestPoster: NewsPoster | null = minDist < 5 ? nearest : null
+    const nearestPoster = minDist < 5 ? (nearest as unknown as NewsPoster) : null
     this.nearestPoster = nearestPoster
-    if (nearestPoster) (nearestPoster as unknown as NewsPoster).setHighlighted(true)
+    if (nearestPoster && nearestPoster !== this.activePoster) nearestPoster.setHighlighted(true)
+  }
+
+  private updateActivePoster(delta: number) {
+    const targetPosActive = new THREE.Vector3(0, 1.8, -2.5) // Center front of bots
+    const targetRotActive = 0
+    const targetScaleActive = new THREE.Vector3(1.6, 1.6, 1.6)
+    
+    this.posters.forEach(p => {
+      if (p === this.activePoster) {
+        p.groupObj.position.lerp(targetPosActive, delta * 3.5)
+        p.groupObj.scale.lerp(targetScaleActive, delta * 3.5)
+        p.groupObj.rotation.y += (targetRotActive - p.groupObj.rotation.y) * delta * 3.5
+      } else {
+        p.groupObj.position.lerp(p.originalPos, delta * 3.5)
+        p.groupObj.scale.lerp(new THREE.Vector3(1, 1, 1), delta * 3.5)
+        p.groupObj.rotation.y += (p.originalRot - p.groupObj.rotation.y) * delta * 3.5
+      }
+    })
   }
 
   private updateParticles(_delta: number) {
@@ -422,10 +532,31 @@ export class NewsroomScene {
     if (botName === 'Arjun') this.botArjun?.setSpeaking(speaking)
   }
 
+  showActiveNews(category: string) {
+    let targetZone = category
+    if (category === 'technology') targetZone = 'startup'
+    if (category === 'general') targetZone = 'world'
+
+    const poster = this.posters.find((p) => p.zoneId === targetZone) || this.posters[0]
+    if (poster && poster !== this.activePoster) {
+      if (this.activePoster) this.activePoster.setHighlighted(false)
+      this.activePoster = poster
+      poster.setHighlighted(true)
+    }
+  }
+
+  hideActiveNews() {
+    if (this.activePoster) {
+      this.activePoster.setHighlighted(false)
+      this.activePoster = null
+    }
+  }
+
   destroy() {
     if (this.animFrameId) cancelAnimationFrame(this.animFrameId)
     this.controller?.destroy()
     if (this.onResize) window.removeEventListener('resize', this.onResize)
+    window.removeEventListener('mousedown', this.handleMouseClick)
     this.renderer.dispose()
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement)

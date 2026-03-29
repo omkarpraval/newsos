@@ -10,6 +10,7 @@ import { pool, query } from './db'
 import { OAuth2Client } from 'google-auth-library'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+import fs from 'node:fs'
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') })
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
 
@@ -169,6 +170,7 @@ app.post('/api/groq', async (req, res) => {
     const data = (await r.json()) as { error?: { message?: string } }
     if (data.error) {
       console.error('[GROQ] Error:', data.error)
+      fs.appendFileSync('groq_errors.log', `${new Date().toISOString()} - ${JSON.stringify(data.error)}\n`)
       res.status(400).json({ error: data.error.message || 'Groq API failed' })
       return
     }

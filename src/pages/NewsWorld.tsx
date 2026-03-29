@@ -1,12 +1,10 @@
 import * as THREE from 'three'
 import * as React from 'react'
-import { useRef, useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Image, Text, ScrollControls, useScroll, Environment, MeshReflectorMaterial } from '@react-three/drei'
 import { fetchHeadlines } from '../services/newsapi'
-import { fetchIndianMarkets } from '../services/markets'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
 
 const ART_SPACING = 3.5
 
@@ -57,7 +55,6 @@ function ArticleFrame({ url, title, position, onClick }: any) {
 
 function Gallery({ articles, onSelect }: any) {
   const scroll = useScroll()
-  const { viewport } = useThree()
   const group = useRef<THREE.Group>(null)
 
   useFrame((state, delta) => {
@@ -80,7 +77,7 @@ function Gallery({ articles, onSelect }: any) {
             key={i} 
             url={imgUrl} 
             title={article.title} 
-            position={[x, 1, z]} 
+            position={[x, 0, z]} 
             onClick={() => onSelect(article)}
           />
         )
@@ -119,16 +116,16 @@ export function NewsWorld() {
 
   // Linear app style page structure
   return (
-    <div className="relative -m-6 h-[calc(100vh-6rem)] bg-black overflow-hidden font-sans">
-      <div className="absolute top-8 left-8 z-10 w-full">
-        <h1 className="text-4xl font-semibold tracking-tight text-white/90 drop-shadow-lg">
+    <div className="relative mt-8 h-[calc(100vh-14rem)] bg-black overflow-hidden font-sans rounded-3xl border border-white/10 shadow-2xl">
+      <div className="absolute top-24 left-14 z-10 w-full">
+        <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-2xl">
           Global Exhibition
         </h1>
-        <p className="mt-2 text-sm text-white/40 tracking-wider uppercase font-medium">Scroll to explore narratives</p>
+        <p className="mt-4 text-sm text-white/50 tracking-[0.3em] uppercase font-bold">Scroll to explore narratives</p>
       </div>
       
       <div className="absolute inset-0 z-0">
-        <Canvas shadows camera={{ position: [0, 1.5, 4], fov: 45 }}>
+        <Canvas shadows camera={{ position: [0, 0.5, 7], fov: 35 }}>
           <color attach="background" args={['#000000']} />
           <fog attach="fog" args={['#000000', 5, 25]} />
           
@@ -139,7 +136,7 @@ export function NewsWorld() {
             <Gallery articles={articles} onSelect={setSelected} />
           </ScrollControls>
 
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]} receiveShadow>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.5, 0]} receiveShadow>
             <planeGeometry args={[50, 200]} />
             <MeshReflectorMaterial
               blur={[300, 100]}

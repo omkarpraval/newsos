@@ -32,13 +32,67 @@ export default function CharchaPage() {
                 ? `/api/news?type=headlines&category=${zone.category}&pageSize=6`
                 : `/api/news?type=search&query=${encodeURIComponent(zone.query || '')}&pageSize=6&daysBack=7`
             const res = await fetch(url)
-            const data = (await res.json()) as { articles?: Article[] }
-            newsData[zone.id] = (data.articles || [])
-              .filter((a) => a.urlToImage)
-              .map((a) => ({
-                ...a,
-                urlToImage: `/api/image?url=${encodeURIComponent(a.urlToImage)}`,
-              }))
+            const data = (await res.json()) as { articles?: Article[], error?: string }
+            if (data.error || !data.articles || data.articles.length === 0) {
+              // Rate limit fallback so AR/VR scene remains functional
+              newsData[zone.id] = [
+                {
+                  title: `Synthetic ${zone.id.charAt(0).toUpperCase() + zone.id.slice(1)} News Update - Major Market Movements Recorded`,
+                  description: 'Due to API rate limits, these synthetic headlines ensure the AR/VR features remain available. Markets are responding to global technical developments.',
+                  urlToImage: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&q=80&w=1000',
+                  url: '#',
+                  source: { name: 'NewsOS' },
+                  publishedAt: new Date().toISOString()
+                },
+                {
+                  title: `Tech Giants Announce New AI Innovations the Industry Did Not See Coming`,
+                  description: 'The latest developments in Artificial Intelligence have caused immense shockwaves across the tech industry.',
+                  urlToImage: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=1000',
+                  url: '#',
+                  source: { name: 'NewsOS Tech' },
+                  publishedAt: new Date().toISOString()
+                },
+                {
+                  title: `Global Markets Rally Continues As Tech Surges to New Highs`,
+                  description: 'Investors remain optimistic as key technology stocks drive market indices upwards for the third consecutive week.',
+                  urlToImage: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&q=80&w=1000',
+                  url: '#',
+                  source: { name: 'NewsOS Finance' },
+                  publishedAt: new Date().toISOString()
+                },
+                {
+                  title: `Central Banks Discuss New Interest Rate Policies for Next Quarter`,
+                  description: 'Policy makers are debating potential rate cuts following recent inflation reports that show mixed signals in the economy.',
+                  urlToImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&q=80&w=1000',
+                  url: '#',
+                  source: { name: 'NewsOS Policy' },
+                  publishedAt: new Date().toISOString()
+                },
+                {
+                  title: `Renewable Energy Sector Sees Massive Influx of Venture Capital`,
+                  description: 'Startups focusing on solid-state batteries and solar efficiency are receiving unprecedented backing from major funds.',
+                  urlToImage: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&q=80&w=1000',
+                  url: '#',
+                  source: { name: 'NewsOS Green' },
+                  publishedAt: new Date().toISOString()
+                },
+                {
+                  title: `Healthcare Innovations Reach Breakthrough Phase in Clinical Trials`,
+                  description: 'New personalized medicine approaches are showing promising results in late-stage clinical testing, potentially revolutionizing treatments.',
+                  urlToImage: 'https://images.unsplash.com/photo-1532187863486-abf9db0f7082?auto=format&fit=crop&q=80&w=1000',
+                  url: '#',
+                  source: { name: 'NewsOS Health' },
+                  publishedAt: new Date().toISOString()
+                }
+              ]
+            } else {
+              newsData[zone.id] = data.articles
+                .filter((a) => a.urlToImage)
+                .map((a) => ({
+                  ...a,
+                  urlToImage: `/api/image?url=${encodeURIComponent(a.urlToImage)}`,
+                }))
+            }
           })
         )
       } catch (err) {

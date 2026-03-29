@@ -123,19 +123,19 @@ export default function ConversationEngine({ sceneRef }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [isActive, isListening])
 
-  function startSession() {
+  async function startSession() {
     setIsActive(true)
     setSessionActive(true)
     setConversation([])
     conversationRef.current = []
     setStatus('Starting broadcast...')
-    window.setTimeout(() => {
-      void triggerBotSpeech('Riya', "Namaste! Welcome to News Pe Charcha. Main hoon Riya, let's decode the headlines together.")
-      window.setTimeout(() => {
-        void triggerBotSpeech('Arjun', "I'm Arjun. Bring your strongest viewpoint and we'll debate it with real context.")
-        window.setTimeout(() => void startListening(), 2200)
-      }, 2000)
-    }, 400)
+    isTalkingRef.current = true
+    await new Promise((resolve) => window.setTimeout(resolve, 400))
+    await triggerBotSpeech('Riya', "Namaste! Welcome to News Pe Charcha. Main hoon Riya, let's decode the headlines together.")
+    await new Promise((resolve) => window.setTimeout(resolve, 500))
+    await triggerBotSpeech('Arjun', "I'm Arjun. Bring your strongest viewpoint and we'll debate it with real context.")
+    isTalkingRef.current = false
+    await startListening()
   }
 
   async function startListening() {
@@ -193,15 +193,21 @@ export default function ConversationEngine({ sceneRef }: Props) {
     setConversation([...conversationRef.current])
     setStatus('Riya and Arjun are thinking...')
     isTalkingRef.current = true
+
+    const scene = sceneRef.current as { showActiveNews?: (cat: string) => void; hideActiveNews?: () => void } | null
+    scene?.showActiveNews?.(detectedCategory)
+
     try {
       const riyaResponse = await getBotResponse('Riya', text, conversationRef.current)
       await triggerBotSpeech('Riya', riyaResponse)
       const arjunResponse = await getBotResponse('Arjun', text, conversationRef.current)
       await triggerBotSpeech('Arjun', arjunResponse)
       setStatus('Press T to speak')
+      scene?.hideActiveNews?.()
       void analyzeMood(conversationRef.current)
     } catch {
       setStatus('Error getting bot response. Press T to continue.')
+      scene?.hideActiveNews?.()
     } finally {
       isTalkingRef.current = false
     }
@@ -388,8 +394,21 @@ export default function ConversationEngine({ sceneRef }: Props) {
         }
       })()
     }
-    window.addEventListener('charcha:gaze', handleGaze as EventListener)
-    return () => window.removeEventListener('charcha:gaze', handleGaze as EventListener)
+
+    const handleClick = (e: Event) => {
+      if (!isActive || isTalkingRef.current) return
+      const ce = e as CustomEvent<{ article?: { title?: string } }>
+      const title = ce.detail?.article?.title
+      if (!title) return
+      void handleUserInput(title)
+    }
+
+    window.addEventListener('charcha:gaze', handleGaze)
+    window.addEventListener('charcha:click', handleClick)
+    return () => {
+      window.removeEventListener('charcha:gaze', handleGaze)
+      window.removeEventListener('charcha:click', handleClick)
+    }
   }, [isActive])
 
   if (!isActive) return null

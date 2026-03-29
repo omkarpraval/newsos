@@ -1,8 +1,8 @@
 import type { NewsArticle, Persona, PersonaProfile, UiLanguage, SynthesisAngle, AngleBriefingData, HindiVideoScript } from '../types'
 import { MOCK_SYNTHESIS_ANGLES, MOCK_ANGLE_BRIEFINGS, MOCK_HINDI_SCRIPT, MOCK_IPL_ANGLES, MOCK_STOCK_ANGLES, MOCK_WAR_ANGLES, MOCK_PERSONALIZED_CARD } from './mockData'
 
-// Use a faster, lighter model to avoid 70B rate limits during the demo
-const GROQ_MODEL = 'llama-3.1-8b-instant'
+// Use a fast, versatile model
+const GROQ_MODEL = 'llama-3.3-70b-versatile'
 
 /**
  * Robustly parse JSON even if it includes markdown blocks or extra text.
@@ -57,15 +57,17 @@ export async function callGroq(
         { role: 'user', content: promptOrMessages },
       ]
 
+  const isJsonRequest = JSON.stringify(allMessages).toLowerCase().includes('json')
+
   const response = await fetch('/api/groq', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: GROQ_MODEL,
       max_tokens: 2500,
-      temperature: 0.1, // Lower temperature for more consistent JSON
+      temperature: 0.1,
       messages: allMessages,
-      response_format: { type: "json_object" } // Force JSON mode if supported
+      ...(isJsonRequest ? { response_format: { type: "json_object" } } : {})
     }),
   })
 

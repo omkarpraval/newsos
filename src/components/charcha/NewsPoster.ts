@@ -21,6 +21,10 @@ export class NewsPoster {
   private imageMesh?: THREE.Mesh
   private breakingFrame?: THREE.Mesh
   private isBreakingNews = false
+  public zoneId: string
+
+  public originalPos: THREE.Vector3 = new THREE.Vector3()
+  public originalRot: number = 0
 
   constructor(
     scene: THREE.Scene,
@@ -36,9 +40,12 @@ export class NewsPoster {
     this.position = position
     this.rotationY = rotationY
     this.zoneColor = zoneColor
+    this.zoneId = ''
   }
 
   async init() {
+    this.originalPos.copy(this.position)
+    this.originalRot = this.rotationY
     this.group.position.copy(this.position)
     this.group.rotation.y = this.rotationY
 
@@ -84,11 +91,43 @@ export class NewsPoster {
     badge.position.set(-0.7, 0.7, 0.01)
     this.group.add(badge)
 
+    // Title Canvas Texture
+    const tCanvas = document.createElement('canvas')
+    tCanvas.width = 512
+    tCanvas.height = 128
+    const tCtx = tCanvas.getContext('2d')!
+    tCtx.fillStyle = 'white'
+    tCtx.font = 'bold 32px sans-serif'
+    tCtx.textAlign = 'center'
+    
+    // Wrap text logic
+    const words = this.article.title.split(' ')
+    let line = ''
+    let y = 40
+    for(let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' '
+      const metrics = tCtx.measureText(testLine)
+      if (metrics.width > 480 && n > 0) {
+        tCtx.fillText(line, 256, y)
+        line = words[n] + ' '
+        y += 40
+      } else {
+        line = testLine
+      }
+    }
+    tCtx.fillText(line, 256, y)
+    
+    const titleTex = new THREE.CanvasTexture(tCanvas)
+    const titleMat = new THREE.MeshBasicMaterial({ map: titleTex, transparent: true })
+    const titlePlane = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.45), titleMat)
+    titlePlane.position.set(0, -0.525, 0.01)
+    this.group.add(titlePlane)
+
     this.hoverLight = new THREE.PointLight(this.zoneColor, 0.3, 3)
     this.hoverLight.position.set(0, 0, 1)
     this.group.add(this.hoverLight)
 
-    const posterSpot = new THREE.SpotLight(0xffffff, 0.65, 6, Math.PI / 9, 0.55)
+    const posterSpot = new THREE.SpotLight(this.zoneColor, 0.8, 6, Math.PI / 8, 0.6)
     posterSpot.position.set(0, 4, 1.4)
     posterSpot.target = this.group
     this.group.add(posterSpot)
@@ -147,5 +186,9 @@ export class NewsPoster {
       const mat = this.breakingFrame.material as THREE.MeshStandardMaterial
       mat.emissiveIntensity = 0.8 + Math.sin(Date.now() * 0.006) * 0.7
     }
+  }
+  
+  public get groupObj() {
+    return this.group
   }
 }
