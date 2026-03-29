@@ -1,5 +1,6 @@
-import type { NewsArticle } from '../types'
-import { generateVideo, generateVideoFromArticle } from '../services/video'
+import type { NewsArticle } from '../src/types'
+import { searchNews } from '../src/services/newsapi'
+import { generateVideo, generateVideoFromArticle } from '../src/services/video'
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*')
