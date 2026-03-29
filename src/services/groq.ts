@@ -41,7 +41,8 @@ export const parseGroqJSON = (text: string) => robustParseJson(text)
 
 export async function callGroq(
   promptOrMessages: string | Array<{ role: string; content: string }>,
-  systemPrompt?: string
+  systemPrompt?: string,
+  jsonMode: boolean = false
 ): Promise<string> {
   const allMessages = Array.isArray(promptOrMessages)
     ? systemPrompt
@@ -63,9 +64,9 @@ export async function callGroq(
     body: JSON.stringify({
       model: GROQ_MODEL,
       max_tokens: 2500,
-      temperature: 0.1, // Lower temperature for more consistent JSON
+      temperature: jsonMode ? 0.1 : 0.7,
       messages: allMessages,
-      response_format: { type: "json_object" } // Force JSON mode if supported
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
     }),
   })
 
@@ -94,7 +95,7 @@ export async function personalizeArticle(article: NewsArticle, persona: Persona)
 Rewrite this headline and summary to be maximally relevant to their perspective.
 Return JSON only: { "headline": string, "summary": string (2 sentences max), "relevanceScore": number 1-10 }
 Article: ${articleSnippet(article)}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   return tryParseJson<{ headline: string; summary: string; relevanceScore: number }>(raw)
 }
 
@@ -121,7 +122,7 @@ Create a structured deep briefing with these exact sections:
 
 Return JSON only with keys: "summary", "facts" (array of strings), "players" (array of {name, role, stance}), "views" (array of {side, text, attribution}), "impact", "watchNext" (array of 3 strings).
 Articles: ${articlesJson}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   return tryParseJson<{
     summary: string
     facts: string[]
@@ -136,7 +137,7 @@ export async function summarizeBullets(article: NewsArticle): Promise<string[]> 
   const prompt = `Return JSON only: { "bullets": string[] } with exactly 3 short bullet points (max 18 words each) summarizing this story:
 ${article.title}
 ${article.description || ''}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   const parsed = tryParseJson<{ bullets: string[] }>(raw)
   if (parsed?.bullets?.length) return parsed.bullets.slice(0, 3)
   return [
@@ -160,7 +161,11 @@ export async function answerAboutSection(
   persona: Persona,
   topic: string
 ) {
-  const prompt = `Context topic: ${topic}. Section:\n${sectionText}\n\nUser (${persona}) asks: ${question}\nAnswer concisely in 2-4 sentences.`
+  const prompt = `Context topic: ${topic}. Section:
+${sectionText}
+
+User (${persona}) asks: ${question}
+Answer concisely in 2-4 sentences.`
   return callGroq(prompt)
 }
 
@@ -178,7 +183,7 @@ Return JSON only: { "headline": string, "summary": string (3 sentences), "fullTe
 
 Article: ${articleSnippet(article)}
 Language: ${language}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   return tryParseJson<{
     headline: string
     summary: string
@@ -215,7 +220,7 @@ Analyze these ${n} articles and return JSON only:
   "prediction": "One bold prediction about where this story goes"
 }
 Articles: ${articlesJson}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   return tryParseJson<import('../types').ArcAnalysis>(raw)
 }
 
@@ -234,7 +239,7 @@ For each scene also return: animation_type (one of: text_reveal, counter_up, map
 Return JSON only: { "title": string, "scenes": [{ "id": string, "duration": number, "text": string, "animation_type": string, "background_color": string }] }
 
 Article: ${articleSnippet(article)}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   return tryParseJson<import('../types').VideoScript>(raw)
 }
 
@@ -242,7 +247,7 @@ export async function marketMoodGroq(headlines: string[]) {
   const prompt = `Given these market headlines, return JSON only: { "mood": "Bullish"|"Bearish"|"Cautious", "line": "one sentence explanation" }
 Headlines:
 ${headlines.join('\n')}`
-  const raw = await callGroq(prompt)
+  const raw = await callGroq(prompt, undefined, true)
   return tryParseJson<{ mood: string; line: string }>(raw)
 }
 
@@ -540,7 +545,7 @@ Respond ONLY with a valid JSON array of objects:
 ]`
 
   try {
-    const raw = await callGroq(prompt)
+    const raw = await callGroq(prompt, undefined, true)
     const parsed = robustParseJson(raw) as NewsArticle[]
     if (Array.isArray(parsed) && parsed.length > 0) return parsed
     return []
@@ -637,7 +642,7 @@ Return ONLY valid JSON:
 }`
 
   try {
-    const raw = await callGroq(prompt, 'Return only valid JSON. No markdown. All Hindi text must be in Devanagari script.')
+    const raw = await callGroq(prompt, 'Return only valid JSON. No markdown. All Hindi text must be in Devanagari script.', true)
     const parsed = tryParseJson<HindiVideoScript>(raw)
     if (parsed && parsed.scenes && parsed.scenes.length > 0) return parsed
     throw new Error('Invalid Hindi script')
