@@ -1,105 +1,170 @@
-# React + TypeScript + Vite
+# 🌑 NewsOS: The Intelligence Operating System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **High-Fidelity Global Intelligence. Powered by Llama-3 & Google GenAI.**
 
-Currently, two official plugins are available:
+NewsOS is a futuristic, high-performance news intelligence platform designed for the modern decision-maker. It transforms the chaotic noise of the global news cycle into a structured, predictive, and cinematic intelligence experience. Built with an **Obsidian & Neon** aesthetic, it provides a "Pilot’s Command Center" view of the world.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🏗️ System Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+NewsOS is built on a unified Full-Stack architecture, merging a high-performance React SPA with a robust Express 5.0 backend engine.
 
-## Video Generation Feature
+```mermaid
+graph TD
+    subgraph Frontend [React SPA - Vite]
+        UI[Obsidian UI Components]
+        Store[Zustand State Management]
+        Globe[3D Cobe Globe]
+        Charts[Chart.js / D3.js]
+    end
 
-This project includes integration with Google's Veo 3.1 model for AI-powered video generation. The feature allows generating videos from text prompts or news articles.
+    subgraph Backend [Unified Express Server]
+        API[Express 5.0 API Routes]
+        Auth[JWT / Bcrypt Security]
+        Proxy[News / Finance Proxies]
+        Router[SPA Catch-all Router]
+    end
 
-### Usage
+    subgraph AI_Pipeline [Intelligence Engine]
+        Groq[Groq Llama-3.1 8B/70B]
+        Veo[Google Video GenAI]
+        NLU[Natural Language Understanding]
+    end
 
-#### Service Layer
-The video generation service is located in `src/services/video.ts` and provides two main functions:
+    subgraph Data_Sources [Live Streams]
+        NewsAPI[NewsAPI.org]
+        GNews[GNews Fallback]
+        Yahoo[Yahoo Finance RSS]
+    end
 
-1. `generateVideo(prompt: string): Promise<Buffer>` - Generate video from a text prompt
-2. `generateVideoFromArticle(article: NewsArticle): Promise<Buffer>` - Generate video based on a news article
-
-#### API Endpoint
-A REST API endpoint is available at `/api/video` that accepts POST requests with either:
-- `{ "prompt": "your video description here" }`
-- `{ "article": { /* NewsArticle object */ } }`
-
-The endpoint returns the generated video as an MP4 file download.
-
-### Environment Setup
-
-To use the video generation feature, you need to set up Google API credentials:
-
-1. Obtain a Google AI API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Add the API key to your environment variables:
-   - For development: Add `VITE_GOOGLE_API_KEY=your_api_key_here` to your `.env` file
-   - For production: Set `GOOGLE_API_KEY` in your server environment
-
-### Dependencies
-
-The feature requires the `@google/genai` package, which is already included in the project dependencies.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+    UI --> Store
+    Store --> API
+    API --> Groq
+    API --> Veo
+    API --> NewsAPI
+    API --> Yahoo
+    Groq --> NLU
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 💎 Core Modules & Deep Feature Set
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. 📂 Intelligence Studio (Dashboard)
+The primary command center for the "Intelligence Pilot."
+- **HUD Telemetry:** Real-time widgets tracking "Intel Intensity" and "Flow Velocity."
+- **Nifty Mood Signal:** An AI-driven market sentiment gauge that distills thousands of business headlines into a single "Market Pulse."
+- **Dynamic Feed:** A prioritized stream of mission-critical news, filtered for impact.
+
+### 2. 🌐 News World (3D Global View)
+A spatial visualization of the planet's news nodes.
+- **Interactive 3D Globe:** Built with `cobe` and `react-three-fiber`, visualizing news breaking in real-time geographic locations.
+- **Spatiotemporal Sync:** The news feed automatically scrolls and focuses as the globe rotates to different regions.
+
+### 3. ⚔️ Shadow Board (Adversarial AI Debate)
+The truth is found between extremes.
+- **High-Level Personas:** Every major story is debated by "The Bull," "The Bear," and "The Regulator."
+- **Synthesis Verdict:** The AI analyzes the debate to provide a "Neutral Reality" summary and a confidence score.
+- **Cognitive Diversity:** Prevents echo chambers by forcing adversarial viewpoints on every topic.
+
+### 4. 🔮 Fiscal Time Machine (Impact Simulation)
+A predictive engine for financial consequence.
+- **Headline Injection:** Users enter a specific news event (e.g., "RBI raises rates by 50bps").
+- **Portfolio Projection:** Simulates the Rupee (₹) gain/loss on a user's specific portfolio size.
+- **Sector Mapping:** Visualizes exactly which industry sectors (IT, Pharma, Real Estate) will be hit hardest.
+
+### 5. 🦋 Causal Mapper (Butterfly Effect Architecture)
+Tracing the invisible threads of global events.
+- **Ripple Mapping:** Maps 1st, 2nd, and 3rd-order consequences of a single news event.
+- **Swarm Intelligence:** Predicts long-term shifts (e.g., "A tech deal in Bengaluru leads to housing spikes in tier-2 cities").
+- **Sentiment Arc:** Visualizes the predicted sentiment trajectory over an 8-week period.
+
+### 6. 🎬 Video Studio (Cinematic Generator)
+Intelligence should be seen, not just read.
+- **Automated Directing:** Turns dry articles into cinematic 4K video briefings using Google's video generation models.
+- **Visual Synthesis:** Automatically selects visuals, soundtracks, and narrations to match the intensity of the news.
+
+### 7. 🗣️ Vernacular (Cultural Intelligence)
+Intelligence that thinks in your language.
+- **Cultural Adaptation:** Not just translation—re-writes news using local Indian analogies (e.g., comparing inflation to Mandi prices).
+- **Multi-Lingual Support:** High-fidelity adaptation for Hindi, Tamil, Telugu, and Bengali audiences.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS |
+| **Animation** | Framer Motion, GSAP |
+| **State** | Zustand, React Query |
+| **3D / Visualization** | Cobe, Three.js, Chart.js, D3.js |
+| **Backend** | Node.js, Express 5.0, TSX (Production) |
+| **AI (LLM)** | Groq (Llama-3.1 8B / 70B), Google Gemini 2.0 |
+| **AI (Video)** | Google Veo (Experimental), Cinematic Fallbacks |
+| **Database** | PostgreSQL (Production), MemoryDB (Demo) |
+
+---
+
+## 🔄 AI Logic Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Server
+    participant Groq_Engine
+    participant News_Engine
+
+    User->>Server: Injects News Topic (e.g. "Tax Hike")
+    Server->>News_Engine: Fetch Live Context / Global Quotes
+    News_Engine-->>Server: Return 15+ Articles & Market Data
+    Server->>Groq_Engine: Adversarial Prompt (Bull vs Bear vs Regulator)
+    Groq_Engine-->>Server: JSON Structured Debate Output
+    Server->>Server: Robust Logic Cleanup & Parsing
+    Server-->>User: Visual Intelligence Render (Graphs, Tables, Debates)
 ```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 20+
+- Groq Cloud API Key
+- NewsAPI Key
+- Google Cloud API Key (for Video/Veo)
+
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/omkarpraval/newsos.git
+   cd newsos
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Configure `.env` file:
+   ```env
+   GROQ_API_KEY=your_key
+   NEWSAPI_KEY=your_key
+   GOOGLE_API_KEY=your_key
+   JWT_SECRET=your_secret
+   PORT=3001
+   ```
+4. Run Development:
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 📜 Dev Manifest
+- **Obsidian Philosophy:** All UI must be high-contrast, premium, and zero-clutter.
+- **Intelligence First:** Every feature must provide an "Edge" that a standard news app cannot.
+- **Low Latency:** AI responses are prioritized through Groq 8B for sub-300ms inference.
+
+---
+
+© 2026 **NewsOS** | Intelligence for the New World.
