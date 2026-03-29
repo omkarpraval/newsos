@@ -356,40 +356,88 @@ export function Landing() {
         </div>
       </section>
 
-      {/* DASHBOARD PREVIEW */}
+      {/* DASHBOARD PREVIEW - ROOT RESOLUTION */}
       <div className="dash-bg">
         <div className="dash-wrap">
-          <div className="dash-card reveal border border-white/10 bg-black/40 backdrop-blur-3xl overflow-hidden">
-            <div className="dash-topbar border-b border-white/5 bg-white/5">
-              <div className="topbar-left text-white/70"><div className="logo-dot" /> HOME DASHBOARD <div className="status-dot" style={{ marginLeft: 4 }} /></div>
-              <div style={{ fontSize: 13, color: '#9CA3AF' }}>Live ↻</div>
-              <div className="avatar-circle" />
+          <div className="dash-card reveal border border-white/10 bg-[#0c0d0e] backdrop-blur-3xl shadow-2xl overflow-hidden">
+            <div className="dash-topbar border-b border-white/5 bg-white/[0.03] px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="logo-dot h-3 w-3" />
+                <div className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Sovereign Protocol v3.1</div>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full flex items-center gap-2">
+                 <div className="status-dot w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                 <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">Master Node Live</span>
+              </div>
             </div>
             
-            {/* ADDED NEWS TICKER IN DASHBOARD PREVIEW */}
-            <div className="bg-purple-950/20 border-b border-purple-500/10 px-6 py-3 flex items-center gap-4">
-               <div className="bg-purple-500 text-[9px] font-black text-white px-2 py-0.5 rounded uppercase tracking-widest">Breaking</div>
-               <div className="text-[11px] font-bold text-purple-200/80 line-clamp-1 flex-1 marquee-scroll">{tickerNews}</div>
-            </div>
-
             <div className="dash-body">
-              <div className="dash-stats">
-                <div className="ds"><div className="ds-lbl">Active Pilots</div><div className="ds-val text-white">{people.toLocaleString()}</div><div className="ds-chg pos">+12%</div></div>
-                <div className="ds"><div className="ds-lbl">Sector Yield</div><div className="ds-val text-white">₹{rev}k</div><div className="ds-chg pos">+42%</div></div>
-                <div className="ds"><div className="ds-lbl">Total Views</div><div className="ds-val text-white">{views.toLocaleString()}</div><div className="ds-chg pos">+84%</div></div>
-              </div>
-              <div className="chart-wrap"><MiniChart /></div>
-              <div className="dash-bottom">
-                <div className="db-card bg-white/5 border border-white/5">
-                  <div className="db-title"><span>{livePeople} active in last 30m</span><span className="rt-badge">LATEST ›</span></div>
-                  <LiveBars onLiveCount={onLiveCount} />
-                </div>
-                <div className="db-card bg-white/5 border border-white/5 flex items-center justify-between">
-                   <div><div className="db-title">Intelligence Latency</div><div className="text-xl font-black text-white">14ms</div></div>
-                   <div className="score-ring-wrap">
-                      <svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" /><circle cx="28" cy="28" r="22" fill="none" stroke="var(--green)" strokeWidth="6" strokeDasharray="138.2" strokeDashoffset="0" strokeLinecap="round" /></svg>
-                      <div className="score-txt text-white">100</div>
+              {/* Sidebar Simulation */}
+              <div className="dash-sidebar flex flex-col gap-6">
+                 <div>
+                   <div className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-3">Intelligence Units</div>
+                   <div className="flex flex-col gap-2">
+                      <div className="px-3 py-2 bg-purple-500/10 border border-purple-500/20 rounded-lg text-xs text-purple-300 font-bold">● Global Markets</div>
+                      <div className="px-3 py-2 text-xs text-white/30 hover:text-white/60 transition-colors">○ Sentiment Cloud</div>
+                      <div className="px-3 py-2 text-xs text-white/30 hover:text-white/60 transition-colors">○ Policy Oracle</div>
                    </div>
+                 </div>
+                 <div className="mt-auto">
+                    <div className="p-4 bg-white/5 border border-white/5 rounded-xl text-center">
+                       <div className="text-[10px] text-white/40 font-bold uppercase mb-1">Signal Health</div>
+                       <div className="text-lg font-black text-white italic tracking-tighter">99.9%</div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Main Preview Content */}
+              <div className="flex-1">
+                <div className="bg-purple-950/20 border border-purple-500/10 rounded-xl px-4 py-2 mb-8 flex items-center gap-3">
+                   <div className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Update</div>
+                   <div className="text-[11px] text-purple-200/60 font-medium truncate flex-1">{tickerNews}</div>
+                </div>
+
+                <div className="ds-grid">
+                  <div className="ds p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Active Pilots</div>
+                    <div className="text-2xl font-black text-white tracking-tight">{people.toLocaleString()}</div>
+                    <div className="text-[10px] font-medium text-green-500 mt-2">+12% vs last 24h</div>
+                  </div>
+                  <div className="ds p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Compute Yield</div>
+                    <div className="text-2xl font-black text-white tracking-tight">₹{rev}k</div>
+                    <div className="text-[10px] font-medium text-green-500 mt-2">+42% efficiency</div>
+                  </div>
+                  <div className="ds p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Intelligence Feed</div>
+                    <div className="text-2xl font-black text-white tracking-tight">Realtime</div>
+                    <div className="text-[10px] font-medium text-purple-400 mt-2">Active Streaming</div>
+                  </div>
+                </div>
+
+                <div className="chart-wrap h-[180px] mb-8 bg-white/[0.01] rounded-2xl overflow-hidden border border-white/5"><MiniChart /></div>
+                
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                     <div className="flex justify-between items-center mb-4">
+                        <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest leading-none">Latency</div>
+                        <div className="text-[10px] text-purple-400 font-bold tracking-widest leading-none uppercase">Optimized</div>
+                     </div>
+                     <div className="text-xl font-black text-white mb-2">14ms</div>
+                     <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-500 w-[94%]" />
+                     </div>
+                  </div>
+                  <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-6">
+                     <div className="score-ring-wrap">
+                        <svg width="50" height="50" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="5" /><circle cx="25" cy="25" r="20" fill="none" stroke="#7C3AED" strokeWidth="5" strokeDasharray="125.6" strokeDashoffset="0" strokeLinecap="round" /></svg>
+                        <div className="score-txt text-xs font-black text-white">100</div>
+                     </div>
+                     <div>
+                        <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Logic Score</div>
+                        <div className="text-lg font-black text-white italic tracking-tighter leading-none mt-1">Sovereign Alpha</div>
+                     </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -404,60 +452,100 @@ export function Landing() {
         <div className="reveal"><div className="vp-icon">◈</div><p className="vp-text"><strong>Sovereign.</strong> Built for analysts, by analysts.</p></div>
       </div>
 
-      {/* FEATURES - MAKE IT SMALL AND VISIBLE */}
-      <section className="feat-section" id="features">
-        <div className="feat-label">Technical Hub</div>
-        <h2 className="feat-title reveal text-white">Cognitive Control</h2>
-        <div className="feat-grid max-w-5xl">
-          <div className="feat-card reveal bg-white/5 border border-white/5 p-8 rounded-3xl hover:bg-white/[0.08] transition-all">
-            <div className="feat-icon g">💰</div>
-            <div className="feat-tag g">Shadow Board</div>
-            <div className="feat-head text-white text-xl">Analyze narratives with AI debates.</div>
-            <ul className="feat-list text-xs opacity-60"><li>Groq Analysis</li><li>Sentiment Mapping</li></ul>
+      {/* FEATURES - ROOT RESOLUTION */}
+      <section className="feat-section bg-[#0a0b0c]" id="features">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="feat-label">Intelligence Stack</div>
+          <h2 className="feat-title reveal text-white mb-20">Cognitive Control</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-32">
+            <div className="feat-card reveal bg-white/[0.02] border border-white/5 p-10 rounded-[32px] hover:bg-white/[0.05] transition-all group">
+              <div className="feat-icon g scale-125 mb-8">💰</div>
+              <div className="feat-tag g text-xs font-black tracking-widest mb-4">Shadow Board</div>
+              <div className="feat-head text-white text-2xl font-black italic tracking-tighter mb-4 leading-tight">Quantify narratives with{'\n'}AI-driven cross-debates.</div>
+              <p className="text-sm text-white/30 leading-relaxed mb-8">Process conflicting reports through a multi-agent logic cluster to extract verified signal.</p>
+              <ul className="feat-list text-xs opacity-60">
+                <li className="flex items-center gap-2"><span>●</span> Groq-Powered Synthesis</li>
+                <li className="flex items-center gap-2"><span>●</span> Sentiment Volatility Mapping</li>
+              </ul>
+            </div>
+            
+            <div className="feat-card reveal bg-white/[0.02] border border-white/5 p-10 rounded-[32px] hover:bg-white/[0.05] transition-all group">
+              <div className="feat-icon b scale-125 mb-8">🌐</div>
+              <div className="feat-tag b text-xs font-black tracking-widest mb-4">3D Nexus</div>
+              <div className="feat-head text-white text-2xl font-black italic tracking-tighter mb-4 leading-tight">Visualizing the Global{'\n'}Intelligence Flow.</div>
+              <p className="text-sm text-white/30 leading-relaxed mb-6">Realtime geospatial monitoring of emerging events across the sovereign intelligence network.</p>
+              <div className="globe-wrap h-[160px] opacity-80 group-hover:opacity-100 transition-opacity"><GlobeCanvas onLiveCount={onGlobeLive} /></div>
+            </div>
           </div>
-          <div className="feat-card reveal bg-white/5 border border-white/5 p-8 rounded-3xl hover:bg-white/[0.08] transition-all">
-            <div className="feat-icon b">🌐</div>
-            <div className="feat-tag b">3D Nexus</div>
-            <div className="feat-head text-white text-xl">Watch global flows in realtime.</div>
-            <div className="globe-wrap h-[120px] mt-4"><GlobeCanvas onLiveCount={onGlobeLive} /></div>
-          </div>
-        </div>
 
-        {/* LATEST NEWS AT LAST SECTION - MAKE IT VISIBLE */}
-        {news.length > 0 && (
-          <div className="mt-20 pt-20 border-t border-white/5">
-             <div className="feat-label italic mb-10 text-center">Intelligence Stream Feed</div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto px-6">
-                {news.map((item, idx) => (
-                  <div key={idx} className="reveal group cursor-pointer bg-white/[0.03] border border-white/10 rounded-2xl p-6 hover:border-purple-500/50 hover:bg-white/[0.06] transition-all">
-                     <div className="flex items-center justify-between mb-4">
-                        <div className="text-[9px] font-black tracking-widest text-purple-400 uppercase">{item.source?.name || 'Intelligence'}</div>
-                        <div className="text-[9px] text-white/20 font-bold uppercase">{new Date(item.publishedAt || '').toLocaleDateString()}</div>
-                     </div>
-                     <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors leading-snug mb-3">{item.title}</h3>
-                     <p className="text-xs text-white/40 line-clamp-2 leading-relaxed">{item.description}</p>
-                  </div>
-                ))}
-             </div>
-             <div className="text-center mt-12">
-                <Link to="/login" className="bg-white/5 border border-white/10 px-8 py-3 rounded-full text-xs font-black text-white/40 hover:text-white hover:border-white/30 transition-all">INITIALIZE FULL STREAM ACCESS →</Link>
-             </div>
-          </div>
-        )}
+          {/* LATEST NEWS - ROOT RESOLUTION */}
+          {news.length > 0 && (
+            <div className="pt-32 border-t border-white/5">
+               <div className="text-center mb-16">
+                  <div className="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em] mb-4">Live Pipeline</div>
+                  <h2 className="text-4xl font-black text-white italic tracking-tighter">Intelligence Stream</h2>
+               </div>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {news.map((item, idx) => (
+                    <div key={idx} className="reveal group cursor-pointer bg-white/[0.01] border border-white/5 rounded-3xl p-8 hover:border-purple-500/40 hover:bg-white/[0.03] transition-all">
+                       <div className="flex items-center justify-between mb-6">
+                          <div className="bg-white/5 px-3 py-1 rounded-full text-[9px] font-black tracking-widest text-white/40 uppercase">{item.source?.name || 'Signals'}</div>
+                          <div className="text-[9px] text-white/20 font-bold uppercase tracking-widest">{new Date(item.publishedAt || '').toLocaleDateString()}</div>
+                       </div>
+                       <h3 className="text-xl font-black text-white group-hover:text-purple-300 transition-colors leading-tight mb-4">{item.title}</h3>
+                       <p className="text-xs text-white/30 line-clamp-3 leading-relaxed">{item.description}</p>
+                    </div>
+                  ))}
+               </div>
+               
+               <div className="text-center mt-20">
+                  <Link to="/login" className="inline-flex items-center gap-4 bg-white text-black px-10 py-4 rounded-full text-xs font-black hover:bg-purple-400 transition-all uppercase tracking-widest">INITIALIZE FULL STREAM ACCESS <span className="text-lg">→</span></Link>
+               </div>
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="border-t border-white/5 pt-16 pb-12">
-        <div className="foot-inner">
-          <div className="md:col-span-1">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center mix-blend-exclusion"><div className="h-3 w-3 bg-black rounded-full" /></div>
-              <span className="font-black text-lg text-white uppercase tracking-tighter italic">NewsOS</span>
+      {/* FOOTER - ROOT RESOLUTION */}
+      <footer className="border-t border-white/5 pt-32 pb-20 bg-[#0a0b0c]">
+        <div className="max-w-7xl mx-auto px-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16">
+          <div className="lg:col-span-2">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center mix-blend-exclusion"><div className="h-4 w-4 bg-black rounded-full" /></div>
+              <span className="font-black text-2xl text-white uppercase tracking-tighter italic">NewsOS</span>
             </div>
-            <p className="foot-desc text-white/20 max-w-xs">High-fidelity intelligence engine for data pilots.</p>
+            <p className="text-white/20 text-sm leading-relaxed max-w-sm">The world's first cognitive news engine. Processing global intelligence into actionable alpha for sovereign data pilots.</p>
+            <div className="mt-12 flex gap-4">
+               <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/5" />
+               <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/5" />
+               <div className="h-8 w-8 rounded-lg bg-white/5 border border-white/5" />
+            </div>
           </div>
-          <div><div className="foot-col-h text-white/40">Nexus</div><Link to="/dashboard" className="foot-link">Pilot Hub</Link><Link to="/world" className="foot-link">3D World</Link></div>
-          <div><div className="foot-col-h text-white/40">Connect</div><Link to="/blog" className="foot-link">Intelligence Log</Link><a href="#" className="foot-link">Privacy</a></div>
+          
+          <div className="flex flex-col gap-4">
+             <div className="text-xs font-black text-white/50 uppercase tracking-[0.2em] mb-4">Command Center</div>
+             <Link to="/dashboard" className="text-white/30 hover:text-white transition-colors text-xs font-bold">Pilot Hub ↻</Link>
+             <Link to="/world" className="text-white/30 hover:text-white transition-colors text-xs font-bold">3D World Grid</Link>
+             <Link to="/video" className="text-white/30 hover:text-white transition-colors text-xs font-bold">VEO Studio</Link>
+             <Link to="/charcha" className="text-white/30 hover:text-white transition-colors text-xs font-bold">Charcha Loop</Link>
+          </div>
+          
+          <div className="flex flex-col gap-4">
+             <div className="text-xs font-black text-white/50 uppercase tracking-[0.2em] mb-4">Intelligence</div>
+             <Link to="/blog" className="text-white/30 hover:text-white transition-colors text-xs font-bold">Protocol Logs</Link>
+             <a href="#" className="text-white/30 hover:text-white transition-colors text-xs font-bold">API Documentation</a>
+             <a href="#" className="text-white/30 hover:text-white transition-colors text-xs font-bold">Privacy Core</a>
+             <div className="mt-8 p-4 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
+                <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">Status</div>
+                <div className="text-[10px] text-white/40 font-bold">All Systems Nominal</div>
+             </div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-10 mt-32 pt-8 border-t border-white/5 flex justify-between items-center text-[10px] font-black text-white/10 uppercase tracking-widest">
+           <div>© 2026 Sovereign News Protocol</div>
+           <div className="flex gap-8"><span>Encrypted Connection</span> <span>Zero Knowledge</span></div>
         </div>
       </footer>
 
