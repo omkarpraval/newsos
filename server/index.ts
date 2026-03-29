@@ -898,7 +898,7 @@ app.post('/api/video/veo', requireUser, async (req, res) => {
 
 // SPA FALLBACK FOR FRONTEND ROUTES
 if (isProd) {
-  app.get('*', (req, res) => {
+  app.get('(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'))
   })
 }
