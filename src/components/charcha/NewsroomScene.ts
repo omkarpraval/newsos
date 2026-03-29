@@ -74,14 +74,14 @@ export class NewsroomScene {
 
   private setupScene() {
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color('#050a18')
-    this.scene.fog = new THREE.FogExp2('#050a18', 0.035)
+    this.scene.background = new THREE.Color('#000000')
+    this.scene.fog = new THREE.FogExp2('#000000', 0.035)
     this.camera = new THREE.PerspectiveCamera(75, this.container.clientWidth / this.container.clientHeight, 0.1, 100)
     this.camera.position.set(0, 1.7, 0)
   }
 
   private setupLighting() {
-    this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.22))
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.4))
     const overhead = new THREE.SpotLight(0xfff3d0, 1.0, 26, Math.PI / 5, 0.45)
     overhead.position.set(0, 6.4, 0)
     overhead.target.position.set(0, 0, 0)
@@ -137,10 +137,9 @@ export class NewsroomScene {
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(24, 24),
       new THREE.MeshStandardMaterial({
-        color: 0x0a0e1a,
-        roughness: 0.05,
-        metalness: 0.4,
-        envMapIntensity: 1.0,
+        color: 0x000000,
+        roughness: 0.2,
+        metalness: 0.1,
       })
     )
     floor.rotation.x = -Math.PI / 2
@@ -148,12 +147,12 @@ export class NewsroomScene {
     this.scene.add(floor)
     const ceiling = new THREE.Mesh(
       new THREE.PlaneGeometry(24, 24),
-      new THREE.MeshStandardMaterial({ color: 0x050810, roughness: 1 })
+      new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1 })
     )
     ceiling.rotation.x = Math.PI / 2
     ceiling.position.y = 7
     this.scene.add(ceiling)
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x0d1120, roughness: 0.9, metalness: 0.05 })
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.9, metalness: 0.05 })
     ;[
       { pos: [0, 3, -11], rot: [0, 0, 0] },
       { pos: [0, 3, 11], rot: [0, Math.PI, 0] },
@@ -235,29 +234,26 @@ export class NewsroomScene {
       this.scene.add(panel)
     })
 
-    // Broadcast screen (back wall)
+    // Broadcast screen (back wall) — more professional light look
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(14, 4),
-      new THREE.MeshStandardMaterial({ color: 0x001133, emissive: 0x001133, emissiveIntensity: 0.55 })
+      new THREE.MeshStandardMaterial({ color: 0x101112, emissive: 0x101112, emissiveIntensity: 0.1 })
     )
     screen.position.set(0, 3.7, 10.4)
     screen.rotation.y = Math.PI
     this.scene.add(screen)
     const liveBar = new THREE.Mesh(
       new THREE.PlaneGeometry(14, 0.5),
-      new THREE.MeshStandardMaterial({ color: 0xe63946, emissive: 0xe63946, emissiveIntensity: 1.0 })
+      new THREE.MeshStandardMaterial({ color: 0xf0a500, emissive: 0xf0a500, emissiveIntensity: 0.5 })
     )
     liveBar.position.set(0, 1.75, 10.35)
     liveBar.rotation.y = Math.PI
     this.scene.add(liveBar)
-    const screenLight = new THREE.PointLight(0x0044ff, 0.8, 8)
-    screenLight.position.set(0, 3.5, 9)
-    this.scene.add(screenLight)
 
     // Upgraded desk
     const desk = new THREE.Mesh(
       new THREE.CylinderGeometry(2.2, 2.4, 0.9, 32),
-      new THREE.MeshStandardMaterial({ color: 0x0a1628, roughness: 0.3, metalness: 0.6 })
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.05, side: THREE.DoubleSide })
     )
     desk.position.set(0, 0.45, 0)
     desk.castShadow = true

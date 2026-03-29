@@ -120,22 +120,27 @@ export default function CharchaPage() {
   }, [sessionActive, sceneReady])
 
   return (
-    <div className="relative -m-6 h-[calc(100vh-6rem)] overflow-hidden bg-[#0a0a0a]">
+    <div className="relative -m-8 h-[calc(100vh-4rem)] overflow-hidden bg-black">
       <AnimatePresence>
         {!sceneReady && (
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8 }}
-            className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0a] font-sans"
+            className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black font-display"
           >
-            <div className="mb-4 font-display text-4xl text-[var(--accent-gold)]">News Pe Charcha</div>
-            <div className="mb-8 text-sm text-white/50">{loadingStatus}</div>
-            <div className="h-0.5 w-56 overflow-hidden rounded bg-white/10">
-              <div className="h-full animate-pulse rounded bg-[var(--accent-gold)]" style={{ width: '65%' }} />
+            <div className="mb-4 font-black text-6xl text-white tracking-tighter">STUDIO <span className="text-white/20">LIVE.</span></div>
+            <div className="mb-10 text-[10px] font-black text-purple-500 tracking-[0.4em] uppercase">{loadingStatus}</div>
+            <div className="h-0.5 w-64 overflow-hidden rounded-full bg-white/5">
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: '100%' }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                className="h-full w-1/2 bg-gradient-to-r from-transparent via-purple-500 to-transparent" 
+              />
             </div>
-            <div className="mt-10 text-center text-xs leading-7 text-white/35">
-              WASD to move · Mouse to look around
+            <div className="mt-16 text-center text-xs font-bold leading-8 text-white/30 uppercase tracking-[0.2em]">
+              <span className="text-white/60">Controls:</span> WASD to move · Mouse to look around
               <br />
               Walk near a poster to inspect headlines
               <br />

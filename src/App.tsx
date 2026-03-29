@@ -20,6 +20,7 @@ import { ShadowBoard } from './pages/ShadowBoard'
 import { FiscalMachine } from './pages/FiscalMachine'
 import { ButterflyEffect } from './pages/ButterflyEffect'
 import { DevilsAdvocate } from './pages/DevilsAdvocate'
+import { Blog } from './pages/Blog'
 import { Chatbot } from './components/ai/Chatbot'
 import { useNewsStore } from './store/useNewsStore'
 import { fetchTopHeadlines } from './services/newsapi'
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="charcha" element={<CharchaPage />} />
           <Route path="persona-demo" element={<PersonaDemo />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="blog" element={<Blog />} />
           <Route path="shadow-board" element={<ShadowBoard />} />
           <Route path="fiscal-machine" element={<FiscalMachine />} />
           <Route path="butterfly" element={<ButterflyEffect />} />
