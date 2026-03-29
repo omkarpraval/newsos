@@ -1,5 +1,4 @@
 import type { NewsArticle } from '../src/types'
-import { searchNews } from '../src/services/newsapi'
 import { generateVideo, generateVideoFromArticle } from '../src/services/video'
 
 export default async function handler(req: any, res: any) {
@@ -18,8 +17,8 @@ export default async function handler(req: any, res: any) {
 
     let videoBuffer: Buffer
     if (article) {
-      // Generate video from article
-      videoBuffer = await generateVideoFromArticle(article)
+      // Generate video from article (NewsArticle)
+      videoBuffer = await generateVideoFromArticle(article as NewsArticle)
     } else if (prompt) {
       // Generate video from prompt
       videoBuffer = await generateVideo(prompt)
@@ -31,7 +30,11 @@ export default async function handler(req: any, res: any) {
     // Set the response headers for video download
     res.setHeader('Content-Type', 'video/mp4')
     res.setHeader('Content-Disposition', 'attachment; filename="generated_video.mp4"')
-    res.send(videoBuffer)
+    if (Buffer.isBuffer(videoBuffer)) {
+      res.send(videoBuffer)
+    } else {
+      res.send(Buffer.from(videoBuffer as any))
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Video generation failed'
     console.error('Video generation error:', message)
