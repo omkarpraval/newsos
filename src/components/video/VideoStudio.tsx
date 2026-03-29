@@ -43,7 +43,7 @@ export function VideoStudio() {
   const [hindiSceneIdx, setHindiSceneIdx] = useState(0)
   const [hindiPlaying, setHindiPlaying] = useState(false)
   const [hindiProgress, setHindiProgress] = useState(0)
-  const [breakingArticle, setBreakingArticle] = useState<NewsArticle | null>(null)
+  const [_breakingArticle, setBreakingArticle] = useState<NewsArticle | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [pipelineStartTime, setPipelineStartTime] = useState<number | null>(null)
   const [pipelineComplete, setPipelineComplete] = useState(false)
@@ -182,7 +182,7 @@ export function VideoStudio() {
   const activeHindiScene = hindiScenes[hindiSceneIdx]
   const active = scenes[sceneIdx]
   const totalDur = useMemo(() => scenes.reduce((a, s) => a + s.duration, 0), [scenes])
-  const hindiTotalDur = useMemo(() => hindiScenes.reduce((a, s) => a + s.duration, 0), [hindiScenes])
+  const _hindiTotalDur = useMemo(() => hindiScenes.reduce((a, s) => a + s.duration, 0), [hindiScenes])
   const elapsedSeconds = (elapsedMs / 1000).toFixed(1)
 
   return (

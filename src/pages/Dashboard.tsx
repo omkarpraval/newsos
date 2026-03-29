@@ -90,7 +90,13 @@ export function Dashboard() {
   }
 
   function handleArticleClick(article: Article) {
-    track({ type: 'article_click', articleId: article.url, title: article.title })
+    track({ 
+      type: 'article_click', 
+      articleId: article.url, 
+      title: article.title, 
+      category: (article as any).category || 'general', 
+      zone: 'dashboard' 
+    })
     setExpandedArticle(article)
   }
 

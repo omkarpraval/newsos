@@ -16,6 +16,12 @@ const app = express()
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '2mb' }))
 
+// SERVE STATIC FRONTEND (PRODUCTION)
+const isProd = process.env.NODE_ENV === 'production'
+if (isProd) {
+  app.use(express.static(path.join(__dirname, '..', 'dist')))
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me'
 const SALT_ROUNDS = 10
 const NEWS_KEY = process.env.NEWSAPI_KEY || process.env.VITE_NEWSAPI_KEY
@@ -890,7 +896,14 @@ app.post('/api/video/veo', requireUser, async (req, res) => {
   }
 })
 
-const port = Number(process.env.API_PORT) || 3001
+// SPA FALLBACK FOR FRONTEND ROUTES
+if (isProd) {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'))
+  })
+}
+
+const port = Number(process.env.PORT) || 3001
 app.listen(port, () => {
-  console.log(`NewsOS API listening on http://localhost:${port}`)
+  console.log(`[PRODUCTION] NewsOS listening on port ${port}`)
 })
