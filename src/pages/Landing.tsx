@@ -298,9 +298,27 @@ export function Landing() {
             <div className="dd-wrap">
               <button type="button" className="nav-link">Features ▾</button>
               <div className="dd-menu">
-                <div className="dd-item"><div className="dd-icon">💰</div><div className="dd-title">Shadow Board</div><div className="dd-desc">3-way AI debates on news</div></div>
-                <div className="dd-item"><div className="dd-icon">🌐</div><div className="dd-title">3D Showroom</div><div className="dd-desc">Immersive news exhibition</div></div>
-                <div className="dd-item"><div className="dd-icon">⚡</div><div className="dd-title">Deep Briefing</div><div className="dd-desc">AI intelligence reports</div></div>
+                <div className="dd-item">
+                  <div className="dd-icon">💰</div>
+                  <div className="dd-text-wrap">
+                    <div className="dd-title">Shadow Board</div>
+                    <div className="dd-desc">3-way AI debates on news</div>
+                  </div>
+                </div>
+                <div className="dd-item">
+                  <div className="dd-icon">🌐</div>
+                  <div className="dd-text-wrap">
+                    <div className="dd-title">3D Showroom</div>
+                    <div className="dd-desc">Immersive news exhibition</div>
+                  </div>
+                </div>
+                <div className="dd-item">
+                  <div className="dd-icon">⚡</div>
+                  <div className="dd-text-wrap">
+                    <div className="dd-title">Deep Briefing</div>
+                    <div className="dd-desc">AI intelligence reports</div>
+                  </div>
+                </div>
               </div>
             </div>
             <a className="nav-link" href="#hiw">How it works</a>
