@@ -49,7 +49,7 @@ function getGroqKey() {
   return process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY
 }
 
-async function callGroqRaw(prompt: string, maxTokens = 2000, temperature = 0.4) {
+async function callGroqRaw(prompt: string, maxTokens = 2000, temperature = 0.4, jsonMode = true) {
   const key = getGroqKey()
   if (!key || key.startsWith('your_')) {
     throw new Error('GROQ_API_KEY not configured')
@@ -61,10 +61,11 @@ async function callGroqRaw(prompt: string, maxTokens = 2000, temperature = 0.4) 
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       max_tokens: maxTokens,
       temperature,
       messages: [{ role: 'user', content: prompt }],
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
     }),
   })
   const data = (await r.json()) as { error?: { message?: string }; choices?: Array<{ message?: { content?: string } }> }
@@ -76,14 +77,27 @@ async function callGroqRaw(prompt: string, maxTokens = 2000, temperature = 0.4) 
   return text
 }
 
-function parseJsonFromText(text: string): unknown {
+function parseJsonFromText(text: string): any {
+  if (!text) return null
   const cleaned = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim()
   try {
     return JSON.parse(cleaned)
   } catch {
-    const match = cleaned.match(/[\[{][\s\S]*[\]}]/)
-    if (match) return JSON.parse(match[0])
-    throw new Error('Failed to parse JSON from Groq')
+    const startObj = cleaned.indexOf('{')
+    const startArr = cleaned.indexOf('[')
+    const start = (startObj !== -1 && (startArr === -1 || startObj < startArr)) ? startObj : startArr
+    const endObj = cleaned.lastIndexOf('}')
+    const endArr = cleaned.lastIndexOf(']')
+    const end = (endObj !== -1 && (endArr === -1 || endObj > endArr)) ? endObj : endArr
+
+    if (start !== -1 && end !== -1 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1))
+      } catch {
+        throw new Error('Robust parse failed')
+      }
+    }
+    throw new Error('Failed to find JSON block in Groq response')
   }
 }
 
