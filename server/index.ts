@@ -615,6 +615,94 @@ app.get('/api/image', async (req, res) => {
   }
 })
 
+app.post('/api/shadow-board', async (req, res) => {
+  const { topic } = req.body as { topic?: string }
+  if (!topic) {
+    res.status(400).json({ error: 'News topic required' })
+    return
+  }
+  const prompt = `You are the Shadow Board of NewsOS. A user has presented this business news topic: "${topic}".
+Generate a debate between three high-level AI personas:
+1. THE BULL (bull): Aggressively optimistic, looking for growth, ROI, and expansion signals.
+2. THE BEAR (bear): Skeptical, looking for risks, debt issues, competitors, and systemic failures.
+3. THE REGULATOR (regulator): Neutral, looking for ethical, legal, and long-term sustainability implications.
+
+Also provide an "AI Synthesis Verdict" (verdict) summarizing the most likely reality and a "confidenceScore" (0-100).
+
+Return ONLY valid JSON (no markdown):
+{
+  "bull": { "name": "...", "stance": "...", "argument": "..." },
+  "bear": { "name": "...", "stance": "...", "argument": "..." },
+  "regulator": { "name": "...", "stance": "...", "argument": "..." },
+  "verdict": "...",
+  "confidenceScore": number
+}`
+  try {
+    const raw = await callGroqRaw(prompt, 1800, 0.5)
+    const parsed = parseJsonFromText(raw)
+    res.json(parsed)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Shadow board failed'
+    res.status(500).json({ error: msg })
+  }
+})
+
+app.post('/api/simulate', async (req, res) => {
+  const { newsHeadline, portfolioValue, persona } = req.body as { newsHeadline?: string; portfolioValue?: number; persona?: string }
+  if (!newsHeadline) {
+    res.status(400).json({ error: 'Headline required' })
+    return
+  }
+  const prompt = `You are the NewsOS Fiscal Machine. A user (${persona || 'investor'}) has a ₹${(portfolioValue || 100000).toLocaleString('en-IN')} portfolio.
+Simulate the impact of this news: "${newsHeadline}".
+Return ONLY valid JSON (no markdown):
+{
+  "impactSummary": "2-sentence summary of the impact",
+  "portfolioImpact": { "estimatedChange": number (-5.0 to 5.0), "rupeeAmount": number, "direction": "positive|negative|neutral", "confidence": "high|medium|low" },
+  "affectedSectors": [
+    { "sector": "...", "impact": number, "reason": "..." }
+  ],
+  "recommendations": ["...", "..."],
+  "disclaimer": "Simulated analysis for educational purposes."
+}`
+  try {
+    const raw = await callGroqRaw(prompt, 1800, 0.4)
+    const parsed = parseJsonFromText(raw)
+    res.json(parsed)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Simulation failed'
+    res.status(500).json({ error: msg })
+  }
+})
+
+app.post('/api/butterfly', async (req, res) => {
+  const { topic } = req.body as { topic?: string }
+  if (!topic) {
+    res.status(400).json({ error: 'Topic required' })
+    return
+  }
+  const prompt = `Analyze the causal ripple effects of: "${topic}".
+Identify 6 nodes across 3 tiers (Primary, Ripple, Causal Chain).
+Return ONLY valid JSON (no markdown):
+{
+  "event": "${topic}",
+  "nodes": [
+    { "id": "...", "label": "Short label", "type": "1st|2nd|3rd", "impact": "positive|negative|neutral", "magnitude": 0-100, "description": "Short reasoning", "sector": "..." }
+  ],
+  "sentimentShift": [ { "week": -4, "value": 0-100 }, ... (8 weeks total) ],
+  "contrarian": "One bold, non-obvious long-term implication",
+  "confidence": number
+}`
+  try {
+    const raw = await callGroqRaw(prompt, 2000, 0.4)
+    const parsed = parseJsonFromText(raw)
+    res.json(parsed)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Causal mapping failed'
+    res.status(500).json({ error: msg })
+  }
+})
+
 /** Yahoo Finance chart proxy (avoids browser CORS) */
 app.get('/api/markets/rss', async (req, res) => {
   const raw = (req.query.symbols as string) || '^NSEI,^BSESN'

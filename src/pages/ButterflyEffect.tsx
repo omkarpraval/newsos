@@ -61,10 +61,20 @@ export function ButterflyEffect() {
   const runAnalysis = async () => {
     if (!topic.trim()) return
     setLoading(true)
-    await new Promise(r => setTimeout(r, 2200))
-    setGraph({ ...DEMO_GRAPH, event: topic, confidence: Math.floor(75 + Math.random() * 20) })
-    setLoading(false)
-    track({ type: 'charcha_mention', topic, category: 'causal' })
+    try {
+      const res = await fetch('/api/butterfly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic }),
+      })
+      const data = await res.json()
+      setGraph(data)
+    } catch (err: any) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+      track({ type: 'charcha_mention', topic, category: 'causal' })
+    }
   }
 
   return (
