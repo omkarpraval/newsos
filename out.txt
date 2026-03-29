@@ -1,0 +1,35 @@
+remote: error: GH013: Repository rule violations found for refs/heads/swayam.        
+remote: 
+remote: - GITHUB PUSH PROTECTION        
+remote:   —————————————————————————————————————————        
+remote:     Resolve the following violations before pushing again        
+remote: 
+remote:     - Push cannot contain secrets        
+remote: 
+remote:             
+remote:      (?) Learn how to resolve a blocked push        
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push        
+remote:             
+remote:             
+remote:       —— Google OAuth Client ID ————————————————————————————        
+remote:        locations:        
+remote:          - commit: 15d1f5bb9712270bd3c5f69865295d84f363243a        
+remote:            path: client_secret_730966642426-mev4ad02ci02oemo1c38rp6ue5qekos0.apps.googleusercontent.com.json:3        
+remote:             
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.        
+remote:        https://github.com/omkarpraval/newsos/security/secret-scanning/unblock-secret/3BcKhV5nZ0J5JgIsZTwOQsLUqVs        
+remote:             
+remote:             
+remote:       —— Google OAuth Client Secret ————————————————————————        
+remote:        locations:        
+remote:          - commit: 15d1f5bb9712270bd3c5f69865295d84f363243a        
+remote:            path: client_secret_730966642426-mev4ad02ci02oemo1c38rp6ue5qekos0.apps.googleusercontent.com.json:8        
+remote:             
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.        
+remote:        https://github.com/omkarpraval/newsos/security/secret-scanning/unblock-secret/3BcKhY3S9Wg4g1TfXUBeMN4D3BQ        
+remote:             
+remote: 
+remote: 
+To https://github.com/omkarpraval/newsos.git
+ ! [remote rejected] swayam -> swayam (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/omkarpraval/newsos.git'

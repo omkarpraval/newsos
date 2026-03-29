@@ -11,6 +11,38 @@ Currently, two official plugins are available:
 
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
+## Video Generation Feature
+
+This project includes integration with Google's Veo 3.1 model for AI-powered video generation. The feature allows generating videos from text prompts or news articles.
+
+### Usage
+
+#### Service Layer
+The video generation service is located in `src/services/video.ts` and provides two main functions:
+
+1. `generateVideo(prompt: string): Promise<Buffer>` - Generate video from a text prompt
+2. `generateVideoFromArticle(article: NewsArticle): Promise<Buffer>` - Generate video based on a news article
+
+#### API Endpoint
+A REST API endpoint is available at `/api/video` that accepts POST requests with either:
+- `{ "prompt": "your video description here" }`
+- `{ "article": { /* NewsArticle object */ } }`
+
+The endpoint returns the generated video as an MP4 file download.
+
+### Environment Setup
+
+To use the video generation feature, you need to set up Google API credentials:
+
+1. Obtain a Google AI API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Add the API key to your environment variables:
+   - For development: Add `VITE_GOOGLE_API_KEY=your_api_key_here` to your `.env` file
+   - For production: Set `GOOGLE_API_KEY` in your server environment
+
+### Dependencies
+
+The feature requires the `@google/genai` package, which is already included in the project dependencies.
+
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:

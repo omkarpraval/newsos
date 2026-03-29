@@ -55,7 +55,7 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string; icon: stri
 
 export function Dashboard() {
   const navigate = useNavigate()
-  const { persona } = useUserStore()
+  const { persona, preferences } = useUserStore()
   const { track, categoryScores, topCategories, totalArticlesRead, recentSearches } = useBehaviorStore()
   const { isPersonalized } = usePersonalizationStore()
   const [heroArticle, setHeroArticle] = useState<Article | null>(null)
@@ -115,7 +115,14 @@ export function Dashboard() {
       const breaking = breakingRaw.filter((a) => Date.now() - new Date(a.publishedAt).getTime() < 2 * 60 * 60 * 1000).slice(0, 3)
       setBreakingArticles(breaking)
 
-      const allArticles = [...businessArticles, ...generalArticles, ...techArticles].filter((a) => a.urlToImage)
+      const allArticles = [...businessArticles, ...generalArticles, ...techArticles].filter((a) => {
+        if (!a.urlToImage) return false
+        // "Choice-base" filtering: prioritize preferences
+        if (preferences.length === 0) return true
+        const cat = a.category === 'business' ? 'markets' : (a.category === 'technology' ? 'tech' : a.category)
+        return preferences.includes(cat || 'unknown') || preferences.includes('world')
+      })
+      
       setHeroArticle(allArticles[0] || null)
       const sortedFeed = [...allArticles.slice(1)].sort((a, b) => {
         const scoreA = categoryScores[a.category || 'general']?.score || 0

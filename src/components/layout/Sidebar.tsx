@@ -2,20 +2,29 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { NavLink } from 'react-router-dom'
 import { useState } from 'react'
 import { usePersonalizationStore } from '../../store/usePersonalizationStore'
+import { useUserStore } from '../../store/useUserStore'
+import type { UserRole } from '../../store/useUserStore'
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: '▦' },
   { to: '/charcha', label: 'News Pe Charcha', icon: '📻' },
   { to: '/world', label: 'World', icon: '◉' },
-  { to: '/briefing', label: 'Briefings', icon: '☷' },
-  { to: '/video', label: 'Video Studio', icon: '▷' },
-  { to: '/arc', label: 'Arc Tracker', icon: '⤴' },
+  { to: '/briefing', label: 'Briefings', icon: '☷', minRole: 'premium' },
+  { to: '/video', label: 'Video Studio', icon: '▷', minRole: 'premium' },
+  { to: '/butterfly', label: 'Butterfly Effect', icon: '🦋' },
+  { to: '/shadow-board', label: 'Shadow Board', icon: '⚔️' },
+  { to: '/fiscal-machine', label: 'Fiscal Machine', icon: '🔮' },
+  { to: '/devils-advocate', label: "Devil's Advocate", icon: '😈' },
+  { to: '/arc', label: 'Arc Tracker', icon: '⤴', minRole: 'admin' },
   { to: '/vernacular', label: 'Vernacular', icon: 'भ' },
+  { to: '/chat', label: 'AI Chat', icon: '🤖' },
   { to: '/persona-demo', label: 'Persona Demo', icon: '⚡' },
+  { to: '/settings', label: 'Settings', icon: '⚙' },
 ]
 
 export function Sidebar() {
   const [hover, setHover] = useState(false)
+  const { role } = useUserStore()
   const { isPersonalized, interestScores, resetPersonalization } = usePersonalizationStore()
   const zoneMeta: Record<string, { name: string; color: string }> = {
     markets: { name: 'Markets Plaza', color: '#f0a500' },
@@ -52,34 +61,31 @@ export function Sidebar() {
           </AnimatePresence>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-2">
-          {links.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition hover:bg-[var(--bg-elevated)] ${
-                  isActive
-                    ? 'border-l-2 border-[var(--accent-gold)] bg-[var(--bg-card)] text-[var(--text-primary)]'
-                    : 'border-l-2 border-transparent text-[var(--text-secondary)]'
-                }`
-              }
-              end={l.to === '/dashboard'}
-              style={({ isActive }) =>
-                l.to === '/charcha'
-                  ? {
-                      color: '#f0a500',
-                      background: isActive ? 'rgba(240,165,0,0.12)' : 'rgba(240,165,0,0.04)',
-                      border: isActive ? '1px solid rgba(240,165,0,0.3)' : '1px solid rgba(240,165,0,0.12)',
-                    }
-                  : undefined
-              }
-            >
-              <span className="w-6 text-center text-base" aria-hidden>
-                {l.icon}
-              </span>
-              {hover && <span>{l.label}</span>}
-            </NavLink>
-          ))}
+          {links
+            .filter((l) => {
+              if (!l.minRole) return true
+              const roleOrder = { basic: 0, premium: 1, admin: 2 }
+              return roleOrder[role as UserRole || 'basic'] >= roleOrder[l.minRole as UserRole]
+            })
+            .map((l) => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition hover:bg-[var(--bg-elevated)] ${
+                    isActive
+                      ? 'border-l-2 border-[var(--accent-gold)] bg-[var(--bg-card)] text-[var(--text-primary)]'
+                      : 'border-l-2 border-transparent text-[var(--text-secondary)]'
+                  }`
+                }
+                end={l.to === '/dashboard'}
+              >
+                <span className="w-6 text-center text-base" aria-hidden>
+                  {l.icon}
+                </span>
+                {hover && <span>{l.label}</span>}
+              </NavLink>
+            ))}
         </nav>
         <div className="mt-auto flex flex-col gap-2 border-t border-[var(--border-subtle)] px-2 pt-4">
           {isPersonalized && hover && (

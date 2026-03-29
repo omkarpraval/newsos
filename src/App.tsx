@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Layout } from './components/layout/Layout'
 import { ArticleDrawer } from './components/news/ArticleDrawer'
 import { OwlNotification } from './components/world/OwlNotification'
+import { FloatingChat } from './components/ai/Chatbot'
 import { Landing } from './pages/Landing'
+import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { NewsWorld } from './pages/NewsWorld'
 import Briefing from './pages/Briefing'
@@ -13,6 +15,12 @@ import { ArcTracker } from './pages/ArcTracker'
 import { Vernacular } from './pages/Vernacular'
 import CharchaPage from './pages/Charcha'
 import { PersonaDemo } from './pages/PersonaDemo'
+import { Settings } from './pages/Settings'
+import { ShadowBoard } from './pages/ShadowBoard'
+import { FiscalMachine } from './pages/FiscalMachine'
+import { ButterflyEffect } from './pages/ButterflyEffect'
+import { DevilsAdvocate } from './pages/DevilsAdvocate'
+import { Chatbot } from './components/ai/Chatbot'
 import { useNewsStore } from './store/useNewsStore'
 import { fetchTopHeadlines } from './services/newsapi'
 
@@ -55,8 +63,11 @@ export default function App() {
     <BrowserRouter>
       <BreakingWatcher />
       <ArticleDrawer />
+      <FloatingChat />
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Login />} />
         <Route element={<Layout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="world" element={<NewsWorld />} />
@@ -66,6 +77,12 @@ export default function App() {
           <Route path="vernacular" element={<Vernacular />} />
           <Route path="charcha" element={<CharchaPage />} />
           <Route path="persona-demo" element={<PersonaDemo />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="shadow-board" element={<ShadowBoard />} />
+          <Route path="fiscal-machine" element={<FiscalMachine />} />
+          <Route path="butterfly" element={<ButterflyEffect />} />
+          <Route path="devils-advocate" element={<DevilsAdvocate />} />
+          <Route path="chat" element={<Chatbot />} />
         </Route>
       </Routes>
     </BrowserRouter>
