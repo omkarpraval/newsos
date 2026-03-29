@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useBehaviorStore } from '../store/useBehaviorStore'
 
 type Impact = 'positive' | 'negative' | 'neutral'
 type Tier = '1st' | '2nd' | '3rd'
@@ -12,7 +13,6 @@ interface CausalNode {
   magnitude: number
   description: string
   sector: string
-  connections: string[]
 }
 
 interface EffectGraph {
@@ -24,145 +24,98 @@ interface EffectGraph {
 }
 
 const NODES: CausalNode[] = [
-  { id: 'evt', label: 'IT Firm Layoffs', type: '1st', impact: 'negative', magnitude: -100, sector: 'Technology', description: 'Announced 15,000 job cuts over 6 months', connections: ['rent', 'vendor', 'comp', 'talent'] },
-  { id: 'rent', label: 'Commercial Real Estate', type: '2nd', impact: 'negative', magnitude: -35, sector: 'Real Estate', description: 'Office vacancy rates in Pune and Whitefield rise 12%', connections: ['bank'] },
-  { id: 'vendor', label: 'Cafeteria Vendor Contracts', type: '2nd', impact: 'negative', magnitude: -60, sector: 'MSME', description: '200+ campus vendors face 70% revenue loss', connections: ['lending'] },
-  { id: 'comp', label: 'Competitor Stock (HCL, Wipro)', type: '2nd', impact: 'positive', magnitude: 28, sector: 'Technology', description: 'Algorithmic buying pushes HCL +4.2% as talent pool opens', connections: [] },
-  { id: 'talent', label: 'EdTech and Upskilling', type: '2nd', impact: 'positive', magnitude: 45, sector: 'Education', description: 'Coursera India reports 300% spike in AI course signups', connections: [] },
-  { id: 'bank', label: 'Home Loan EMI Defaults', type: '3rd', impact: 'negative', magnitude: -20, sector: 'Banking', description: 'Expected 0.3% NPA rise in retail mortgages (Bengaluru)', connections: [] },
-  { id: 'lending', label: 'MSME Micro Lending Stress', type: '3rd', impact: 'negative', magnitude: -40, sector: 'NBFC', description: 'Vendor NPAs may spike - NBFC portfolios in IT corridors at risk', connections: [] },
+  { id: 'evt', label: 'Semi-conductor Fab Deal', type: '1st', impact: 'positive', magnitude: 92, sector: 'STRATEGY', description: 'Karnataka govt signs major $10B plant deal.' },
+  { id: 'rent', label: 'Ancillary Manufacturing', type: '2nd', impact: 'positive', magnitude: 65, sector: 'INDUSTRIAL', description: 'Local component ecosystem projected to grow by 240%.' },
+  { id: 'vendor', label: 'Real Estate Appreciation', type: '2nd', impact: 'positive', magnitude: 45, sector: 'PROPERTY', description: 'Tier-2 cities near the hub see 40% spike in commercial interests.' },
+  { id: 'comp', label: 'Import Dependency Reset', type: '2nd', impact: 'positive', magnitude: 28, sector: 'MACRO', description: 'National trade deficit impacts reduced by 2.4% over 5 years.' },
+  { id: 'bank', label: 'Skilled Talent Flight', type: '3rd', impact: 'negative', magnitude: 15, sector: 'EDUCATION', description: 'Talent wars between tech hubs may increase salary inflation.' },
+  { id: 'lending', label: 'Power Grid Stress', type: '3rd', impact: 'negative', magnitude: 30, sector: 'UTILITIES', description: 'High-intensity fab operations require 2GW grid upgrade.' },
 ]
 
 const DEMO_GRAPH: EffectGraph = {
-  event: 'Major IT firm announces 15,000 layoffs amid global tech slowdown',
-  confidence: 82,
-  contrarian: 'Some analysts argue the layoffs signal a disciplined pivot to AI-centered R&D, potentially positioning the company for 40% margin expansion by FY27 - a view held by only 18% of analysts surveyed.',
+  event: 'Major Semi-conductor Fab plant announced in Karnataka hub',
+  confidence: 89,
+  contrarian: 'While the deal is historic, the environmental impact on groundwater in the arid regions could become a significant 5th-order political crisis by 2032.',
   sentimentShift: [
-    { week: -4, value: 62 }, { week: -3, value: 58 }, { week: -2, value: 51 },
-    { week: -1, value: 47 }, { week: 0, value: 23 }, { week: 1, value: 31 },
-    { week: 2, value: 38 }, { week: 3, value: 42 },
+    { week: -4, value: 42 }, { week: -3, value: 45 }, { week: -2, value: 48 },
+    { week: -1, value: 52 }, { week: 0, value: 89 }, { week: 1, value: 82 },
+    { week: 2, value: 78 }, { week: 3, value: 81 },
   ],
   nodes: NODES,
 }
 
 const IMPACT_COLORS: Record<Impact, string> = { positive: '#22c55e', negative: '#ef4444', neutral: '#6b7280' }
-const TYPE_LABELS: Record<Tier, { label: string; color: string }> = {
-  '1st': { label: 'Primary Event', color: '#7c3aed' },
-  '2nd': { label: '2nd Order Effects', color: '#2dd4bf' },
-  '3rd': { label: '3rd Order Effects', color: '#f59e0b' },
+const TYPE_CONFIG: Record<Tier, { label: string; color: string; border: string }> = {
+  '1st': { label: 'Primary Resonance', color: 'text-purple-500', border: 'border-purple-500/20' },
+  '2nd': { label: 'Ripple Effects', color: 'text-blue-500', border: 'border-blue-500/20' },
+  '3rd': { label: 'Causal Chain', color: 'text-white/20', border: 'border-white/10' },
 }
 
 export function ButterflyEffect() {
   const [topic, setTopic] = useState('')
   const [graph, setGraph] = useState<EffectGraph | null>(null)
-  const [selected, setSelected] = useState<CausalNode | null>(null)
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'graph' | 'sentiment' | 'contrarian'>('graph')
-  const [uncertainty, setUncertainty] = useState(false)
+  const { track } = useBehaviorStore()
 
   const runAnalysis = async () => {
     if (!topic.trim()) return
     setLoading(true)
-    setSelected(null)
-    await new Promise(r => setTimeout(r, 1800))
-    setGraph({ ...DEMO_GRAPH, event: topic, confidence: Math.floor(65 + Math.random() * 30) })
+    await new Promise(r => setTimeout(r, 2200))
+    setGraph({ ...DEMO_GRAPH, event: topic, confidence: Math.floor(75 + Math.random() * 20) })
     setLoading(false)
-    setUncertainty(Math.random() > 0.6)
-  }
-
-  const loadDemo = () => {
-    setTopic(DEMO_GRAPH.event)
-    setGraph(DEMO_GRAPH)
-    setUncertainty(false)
+    track({ type: 'charcha_mention', topic, category: 'causal' })
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 0 60px' }}>
-      <div style={{ marginBottom: 40 }}>
-        <div className="tag tag-cyan" style={{ marginBottom: 16 }}>Butterfly Effect Engine</div>
-        <h1 style={{ fontSize: 36, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', marginBottom: 12 }}>
-          Nth-Order Causality Mapping
-        </h1>
-        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, lineHeight: 1.7 }}>
-          Enter any business news event to instantly trace its 2nd and 3rd-order ripple effects across sectors, suppliers, and markets.
-        </p>
-      </div>
+    <div className="max-w-6xl mx-auto py-12">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-20">
+         <div className="text-[10px] font-black tracking-[0.4em] text-purple-500 uppercase mb-6">Autonomous Causal Engine</div>
+         <h1 className="text-7xl font-black text-white tracking-tighter uppercase leading-[0.8] mb-8 italic">
+           Ripple<br/><span className="text-white/10">Architecture.</span>
+         </h1>
+         <p className="text-xl font-bold text-white/30 max-w-xl leading-relaxed">
+           Trace how a single news signal triggers 2nd and 3rd-order shifts across global sectors and sentiment.
+         </p>
+      </motion.div>
 
-      <div className="glass-card" style={{ padding: 28, marginBottom: 32 }}>
+      <div className="mb-24 rounded-[48px] bg-white/[0.03] border border-white/5 p-12 backdrop-blur-3xl shadow-2xl overflow-hidden relative group">
+        <div className="absolute top-0 right-0 h-96 w-96 bg-purple-600/5 blur-[100px] -translate-y-1/2 translate-x-1/2" />
         <textarea
           value={topic}
           onChange={e => setTopic(e.target.value)}
-          placeholder="e.g. Major IT firm announces 15,000 layoffs amid global tech slowdown..."
+          placeholder="Inject a News Event (e.g. RBI Rate Pivot...)"
+          className="w-full bg-transparent text-4xl font-black text-white placeholder:text-white/10 outline-none resize-none mb-12 uppercase italic tracking-tighter"
           rows={2}
-          style={{
-            width: '100%', resize: 'none', background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16,
-            padding: '16px 20px', fontSize: 14, color: '#fff', fontFamily: 'inherit',
-            outline: 'none', marginBottom: 16, display: 'block',
-          }}
         />
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <button onClick={runAnalysis} disabled={loading || !topic.trim()} className="btn-primary" style={{ flex: 1, minWidth: 200, justifyContent: 'center' }}>
-            {loading ? 'Mapping ripple effects...' : 'Map the Butterfly Effect'}
+        <div className="flex gap-6">
+          <button 
+            onClick={runAnalysis} 
+            disabled={loading || !topic.trim()}
+            className="flex-1 rounded-3xl bg-white py-6 text-sm font-black text-black hover:scale-[1.01] active:scale-95 transition-all shadow-xl disabled:opacity-50"
+          >
+            {loading ? 'SIMULATING ENTROPY...' : 'MAP CAUSALITY CHAIN'}
           </button>
-          <button onClick={loadDemo} className="btn-ghost">Load Demo</button>
+          <button onClick={() => { setTopic(DEMO_GRAPH.event); setGraph(DEMO_GRAPH) }} className="px-10 rounded-3xl bg-white/5 border border-white/10 text-xs font-black text-white/40 hover:text-white hover:bg-white/10 transition-all">RECENT DATA</button>
         </div>
       </div>
 
       <AnimatePresence>
         {loading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ fontSize: 64, animation: 'float 2s infinite' }}>🦋</div>
-            <p style={{ marginTop: 24, color: 'rgba(255,255,255,0.4)', fontSize: 14, fontWeight: 600 }}>
-              Swarm computing 2nd and 3rd order effects...
-            </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
-              {['Ingestor', 'Router', 'Synthesizer', 'Fact-Checker'].map((a, i) => (
-                <div key={a} style={{ padding: '4px 12px', borderRadius: 99, background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.2)', fontSize: 11, color: '#2dd4bf', animationDelay: `${i * 0.3}s` }}>
-                  {a}
-                </div>
-              ))}
-            </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center py-40">
+             <div className="text-7xl mb-12 animate-pulse">🦋</div>
+             <div className="text-[10px] font-black text-white/20 tracking-[0.5em] uppercase">Swarm Intelligence Processing</div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
         {graph && !loading && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            {uncertainty && (
-              <div className="uncertainty-mode" style={{ padding: '16px 24px', borderRadius: 16, marginBottom: 24, background: 'rgba(234,179,8,0.08)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#eab308', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Uncertainty Mode Active</div>
-                  <div style={{ fontSize: 12, color: 'rgba(234,179,8,0.7)', marginTop: 4 }}>Conflicting data detected. Portfolio simulations paused. Confidence: {graph.confidence}%</div>
-                </div>
-              </div>
-            )}
-
-            <div className="glass-card" style={{ padding: 24, marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Primary Event</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', lineHeight: 1.4 }}>{graph.event}</div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 700, textTransform: 'uppercase' }}>Swarm Confidence</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: graph.confidence >= 75 ? '#22c55e' : '#f59e0b' }}>{graph.confidence}%</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-24">
+            <div className="flex gap-4 border-b border-white/5 pb-8">
               {(['graph', 'sentiment', 'contrarian'] as const).map(m => (
-                <button key={m} onClick={() => setMode(m)}
-                  style={{
-                    padding: '8px 20px', borderRadius: 99, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
-                    background: mode === m ? '#2dd4bf' : 'rgba(255,255,255,0.06)',
-                    color: mode === m ? '#000' : 'rgba(255,255,255,0.5)',
-                    transition: 'all 0.2s'
-                  }}
+                <button 
+                  key={m} 
+                  onClick={() => setMode(m)}
+                  className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === m ? 'bg-white text-black' : 'text-white/30 hover:text-white'}`}
                 >
                   {m === 'graph' ? 'Ripple Map' : m === 'sentiment' ? 'Sentiment Arc' : 'Contrarian Pulse'}
                 </button>
@@ -170,35 +123,31 @@ export function ButterflyEffect() {
             </div>
 
             {mode === 'graph' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div className="grid gap-20">
                 {(['1st', '2nd', '3rd'] as Tier[]).map(tier => (
                   <div key={tier}>
-                    <div className="tag" style={{ marginBottom: 12, borderColor: `${TYPE_LABELS[tier].color}40`, color: TYPE_LABELS[tier].color, background: `${TYPE_LABELS[tier].color}10` }}>
-                      {TYPE_LABELS[tier].label}
+                    <div className={`text-[10px] font-black uppercase tracking-[0.4em] mb-12 pl-6 border-l-2 ${TYPE_CONFIG[tier].color} ${TYPE_CONFIG[tier].border}`}>
+                      {TYPE_CONFIG[tier].label}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                       {graph.nodes.filter(n => n.type === tier).map(node => (
-                        <motion.div key={node.id} whileHover={{ scale: 1.01 }}
-                          onClick={() => setSelected(selected?.id === node.id ? null : node)}
-                          style={{
-                            padding: 20, borderRadius: 20, cursor: 'pointer',
-                            background: `${IMPACT_COLORS[node.impact]}0d`,
-                            border: `1px solid ${IMPACT_COLORS[node.impact]}30`,
-                            boxShadow: selected?.id === node.id ? `0 0 20px ${IMPACT_COLORS[node.impact]}30` : 'none',
-                            transition: 'all 0.2s'
-                          }}
+                        <motion.div 
+                          key={node.id} 
+                          whileHover={{ y: -8 }}
+                          className={`relative overflow-hidden rounded-[32px] bg-white/[0.02] border border-white/5 p-10 group hover:bg-white/[0.05] transition-all`}
                         >
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{node.label}</div>
-                            <div style={{ fontSize: 16, fontWeight: 900, color: IMPACT_COLORS[node.impact], flexShrink: 0 }}>
-                              {node.impact === 'positive' ? `+${Math.abs(node.magnitude)}%` : node.impact === 'negative' ? `-${Math.abs(node.magnitude)}%` : '---'}
-                            </div>
+                          <div className="absolute top-0 right-0 px-6 py-4 bg-white/5 text-[10px] font-black text-white/40 tracking-widest italic">
+                            NODE {node.id.toUpperCase()}
                           </div>
-                          <div style={{ height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginBottom: 10 }}>
-                            <div style={{ height: '100%', borderRadius: 99, background: IMPACT_COLORS[node.impact], width: `${Math.abs(node.magnitude)}%`, transition: 'width 0.8s ease' }} />
-                          </div>
-                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-                            <span style={{ fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>{node.sector}</span> — {node.description}
+                          <div className="text-[10px] font-black text-purple-500 mb-4 tracking-[0.2em]">{node.sector}</div>
+                          <h3 className="text-2xl font-black text-white mb-6 uppercase tracking-tight italic">{node.label}</h3>
+                          <p className="text-sm font-bold text-white/60 leading-relaxed group-hover:text-white transition-colors uppercase">{node.description}</p>
+                          <div className="mt-8 h-px w-full bg-white/5" />
+                          <div className="mt-8 flex items-center justify-between">
+                             <div className="flex gap-1">
+                                {[1,2,3,4,5].map(s => <div key={s} className={`h-1 w-4 rounded-full ${s <= (node.magnitude/20) ? 'bg-purple-500' : 'bg-white/5'}`} />)}
+                             </div>
+                             <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{node.impact}</span>
                           </div>
                         </motion.div>
                       ))}
@@ -209,20 +158,18 @@ export function ButterflyEffect() {
             )}
 
             {mode === 'sentiment' && (
-              <div className="glass-card" style={{ padding: 36 }}>
-                <h3 style={{ color: '#fff', marginBottom: 8 }}>Sentiment Shift Timeline</h3>
-                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 32 }}>How public sentiment evolved (week 0 = event date)</p>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 180 }}>
+              <div className="rounded-[48px] bg-white/[0.02] border border-white/5 p-20">
+                <h3 className="text-3xl font-black text-white mb-4 uppercase italic">Sentiment Arc</h3>
+                <p className="text-sm font-bold text-white/30 mb-20 uppercase tracking-widest">Algorithmic trajectory of the global market pulse.</p>
+                <div className="flex items-end gap-4 h-[300px]">
                   {graph.sentimentShift.map(d => (
-                    <div key={d.week} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        width: '100%', borderRadius: '8px 8px 0 0',
-                        height: `${d.value * 1.8}px`,
-                        background: d.week === 0 ? '#ef4444' : d.value > 50 ? '#22c55e' : '#2dd4bf',
-                        opacity: d.week === 0 ? 1 : 0.7,
-                        transition: 'height 0.5s ease'
-                      }} />
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 700 }}>W{d.week >= 0 ? `+${d.week}` : d.week}</div>
+                    <div key={d.week} className="flex-1 flex flex-col items-center gap-6">
+                      <motion.div 
+                        initial={{ height: 0 }}
+                        animate={{ height: `${d.value * 2.5}px` }}
+                        className={`w-full rounded-2xl ${d.week === 0 ? 'bg-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.3)]' : 'bg-white/5'}`} 
+                      />
+                      <span className="text-[10px] font-black text-white/20 uppercase tabular-nums">W{d.week >= 0 ? `+${d.week}` : d.week}</span>
                     </div>
                   ))}
                 </div>
@@ -230,19 +177,14 @@ export function ButterflyEffect() {
             )}
 
             {mode === 'contrarian' && (
-              <div className="glass-card" style={{ padding: 36, borderColor: 'rgba(239,68,68,0.3)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                  <div style={{ fontSize: 32 }}>🔴</div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Contrarian Pulse Detected</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Opinion deviates from dominant market consensus (held by 18% of analysts)</div>
-                  </div>
-                </div>
-                <div style={{ padding: 24, borderRadius: 20, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 15, color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontStyle: 'italic' }}>
-                  "{graph.contrarian}"
-                </div>
-                <div style={{ marginTop: 20, fontSize: 12, color: 'rgba(239,68,68,0.6)', fontWeight: 600 }}>
-                  This view challenges the 82%-consensus narrative. Evaluate independently before acting.
+              <div className="rounded-[40px] bg-purple-600/5 border border-purple-500/10 p-20 relative overflow-hidden">
+                <div className="absolute top-0 right-0 h-[400px] w-[400px] bg-purple-500/5 blur-[120px] -translate-y-1/2 translate-x-1/2" />
+                <div className="relative">
+                   <div className="text-[10px] font-black text-purple-500 mb-12 tracking-[0.4em] uppercase underline decoration-purple-500/20 underline-offset-8 decoration-2">Contrarian Pulse Detected</div>
+                   <div className="text-5xl font-black text-white leading-tight mb-8 italic tracking-tighter uppercase max-w-4xl">
+                     "{graph.contrarian}"
+                   </div>
+                   <p className="text-xl font-bold text-white/20 uppercase leading-relaxed max-w-2xl">This perspective challenges consensus derived from autonomous entropy checks.</p>
                 </div>
               </div>
             )}

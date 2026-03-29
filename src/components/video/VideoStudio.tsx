@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { generateVideoScript, generateHindiVideoScript } from '../../services/groq'
@@ -5,11 +6,17 @@ import { searchNews } from '../../services/newsapi'
 import { useNarrator, type VoicePreset } from '../../hooks/useNarrator'
 import { speakHindi, stopSpeaking } from '../../services/tts'
 import { MOCK_BREAKING_ARTICLE } from '../../services/mockData'
+import { useBehaviorStore } from '../../store/useBehaviorStore'
+import { useUserStore } from '../../store/useUserStore'
 import type { VideoScript, HindiVideoScript, NewsArticle } from '../../types'
 
 type StudioMode = 'english' | 'hindi-breaking'
 
 export function VideoStudio() {
+  const location = useLocation()
+  const { track } = useBehaviorStore()
+  const { token } = useUserStore()
+  const incomingArticle = location.state?.article as NewsArticle | undefined
   const [mode, setMode] = useState<StudioMode>('english')
 
   // ── English mode state ──
@@ -22,6 +29,14 @@ export function VideoStudio() {
   const [progress, setProgress] = useState(0)
   const { narrate, stop } = useNarrator()
 
+  useEffect(() => {
+    if (incomingArticle) {
+      track({ type: 'article_click', articleId: incomingArticle.url, title: incomingArticle.title, category: (incomingArticle as any).category || 'general', zone: 'dashboard' })
+      setTopic(incomingArticle.title)
+      setMode('english')
+    }
+  }, [incomingArticle])
+
   // ── Hindi breaking mode state ──
   const [hindiScript, setHindiScript] = useState<HindiVideoScript | null>(null)
   const [hindiLoading, setHindiLoading] = useState(false)
@@ -32,12 +47,14 @@ export function VideoStudio() {
   const [elapsedMs, setElapsedMs] = useState(0)
   const [pipelineStartTime, setPipelineStartTime] = useState<number | null>(null)
   const [pipelineComplete, setPipelineComplete] = useState(false)
+  const [veoUrl, setVeoUrl] = useState<string | null>(null)
+  const [renderingVeo, setRenderingVeo] = useState(false)
   const timerRef = useRef<number | null>(null)
 
   const scenes = script?.scenes ?? []
   const hindiScenes = hindiScript?.scenes ?? []
 
-  // ── English playback ──
+  // ── Playback ──
   useEffect(() => {
     if (!playing || !scenes.length) return
     const sc = scenes[sceneIdx]
@@ -56,7 +73,6 @@ export function VideoStudio() {
     }
   }, [playing, scenes, sceneIdx, narrate, stop, voice])
 
-  // ── Hindi playback ──
   useEffect(() => {
     if (!hindiPlaying || !hindiScenes.length) return
     const sc = hindiScenes[hindiSceneIdx]
@@ -68,7 +84,6 @@ export function VideoStudio() {
       setHindiSceneIdx((i) => i + 1)
       setHindiProgress(((hindiSceneIdx + 1) / hindiScenes.length) * 100)
     })
-    // Fallback timer in case speech doesn't fire onEnd
     const t = window.setTimeout(() => {
       setHindiSceneIdx((i) => i + 1)
       setHindiProgress(((hindiSceneIdx + 1) / hindiScenes.length) * 100)
@@ -79,7 +94,6 @@ export function VideoStudio() {
     }
   }, [hindiPlaying, hindiScenes, hindiSceneIdx])
 
-  // ── Timer for pipeline elapsed ──
   useEffect(() => {
     if (pipelineStartTime && !pipelineComplete) {
       timerRef.current = window.setInterval(() => {
@@ -91,12 +105,11 @@ export function VideoStudio() {
     }
   }, [pipelineStartTime, pipelineComplete])
 
-  // ── English generate ──
   async function generate() {
     setLoading(true)
     setScript(null)
     try {
-      const q = topic.trim() || 'India business'
+      const q = topic.trim() || 'India business macro'
       const res = await searchNews(q, 1)
       const article = res[0]
       if (!article) throw new Error('No article found')
@@ -110,7 +123,6 @@ export function VideoStudio() {
     }
   }
 
-  // ── Hindi breaking pipeline ──
   async function startHindiPipeline() {
     setHindiLoading(true)
     setHindiScript(null)
@@ -120,40 +132,50 @@ export function VideoStudio() {
     setElapsedMs(0)
 
     try {
-      // Step 1: Fetch breaking article
       let article: NewsArticle | null = null
       try {
         const res = await fetch('/api/breaking/latest')
         const data = (await res.json()) as { article?: NewsArticle }
         article = data.article || null
       } catch {
-        console.log('[VideoStudio] API error, using mock data')
+        console.log('[VideoStudio] Using mock data')
       }
-
-      // Fallback to mock data if API fails
-      if (!article) {
-        console.log('[VideoStudio] Using mock breaking article')
-        article = MOCK_BREAKING_ARTICLE
-      }
+      if (!article) article = MOCK_BREAKING_ARTICLE
       setBreakingArticle(article)
-
-      // Step 2: Generate Hindi script
       const hs = await generateHindiVideoScript(article)
-      if (!hs) throw new Error('Could not generate Hindi script')
+      if (!hs) throw new Error('Generation failed')
       setHindiScript(hs)
       setHindiSceneIdx(0)
       setHindiProgress(0)
       setPipelineComplete(true)
-
-      // Auto-play after generation
-      setTimeout(() => {
-        setHindiPlaying(true)
-      }, 500)
+      setTimeout(() => setHindiPlaying(true), 500)
     } catch (err) {
-      console.error('[VideoStudio] Hindi pipeline error:', err)
+      console.error(err)
       setPipelineComplete(true)
     } finally {
       setHindiLoading(false)
+    }
+  }
+
+  async function renderWithVeo() {
+    if (!topic) return
+    setRenderingVeo(true)
+    setVeoUrl(null)
+    try {
+      if (!token) throw new Error('Authentication required for VEO.')
+      const res = await fetch('/api/video/veo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt: `Cinematic news coverage: ${topic}. High definition, professional journalist style.` })
+      })
+      const data = await res.json()
+      if (data.videoUrl || data.previewUrl) {
+        setVeoUrl(data.videoUrl || data.previewUrl)
+      }
+    } catch (e) {
+      console.error('[VEO] Component error:', e)
+    } finally {
+      setRenderingVeo(false)
     }
   }
 
@@ -163,382 +185,214 @@ export function VideoStudio() {
   const hindiTotalDur = useMemo(() => hindiScenes.reduce((a, s) => a + s.duration, 0), [hindiScenes])
   const elapsedSeconds = (elapsedMs / 1000).toFixed(1)
 
-  function downloadTxt() {
-    if (!script) return
-    const blob = new Blob([JSON.stringify(script, null, 2)], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'newsos-video-script.txt'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
-    <div style={{ minHeight: '100vh', fontFamily: 'DM Sans, sans-serif' }}>
+    <div className="min-h-screen bg-[#0a0b0c] text-white">
       {/* Mode Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      <div className="flex gap-4 mb-16 bg-white/5 p-1 rounded-2xl w-fit">
         <button
           onClick={() => setMode('english')}
-          style={{
-            flex: 1,
-            padding: '14px 20px',
-            borderRadius: 12,
-            border: mode === 'english' ? '2px solid #f0a500' : '1px solid rgba(255,255,255,0.1)',
-            background: mode === 'english' ? 'rgba(240,165,0,0.1)' : 'transparent',
-            color: mode === 'english' ? '#f0a500' : 'rgba(255,255,255,0.5)',
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
+          className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'english' ? 'bg-white text-black shadow-xl' : 'text-white/40 hover:text-white'}`}
         >
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.15em', marginBottom: 4 }}>STANDARD MODE</div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>▶ English Video Script Studio</div>
+          Prime Studio
         </button>
         <button
           onClick={() => setMode('hindi-breaking')}
-          style={{
-            flex: 1,
-            padding: '14px 20px',
-            borderRadius: 12,
-            border: mode === 'hindi-breaking' ? '2px solid #e63946' : '1px solid rgba(255,255,255,0.1)',
-            background: mode === 'hindi-breaking' ? 'rgba(230,57,70,0.1)' : 'transparent',
-            color: mode === 'hindi-breaking' ? '#e63946' : 'rgba(255,255,255,0.5)',
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
+          className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'hindi-breaking' ? 'bg-white text-black shadow-xl' : 'text-white/40 hover:text-white'}`}
         >
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.15em', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#e63946', animation: 'pulse 1s ease-in-out infinite', display: 'inline-block' }} />
-            CHALLENGE 3
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>⚡ Breaking → Hindi Video (&lt;60s)</div>
+          Vernacular Pulse
         </button>
       </div>
 
       {mode === 'english' ? (
-        /* ── ENGLISH MODE ── */
-        <div className="grid gap-8 lg:grid-cols-12">
-          <div className="space-y-4 lg:col-span-5">
-            <h1 className="font-display text-2xl">AI Video News Studio</h1>
-            <input
-              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 py-3 text-sm"
-              placeholder="Topic or keywords…"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-            />
-            <button
-              type="button"
-              className="w-full rounded-xl border border-[var(--border)] px-4 py-2 text-xs hover:border-[var(--accent-gold)]"
-              onClick={() => void generate()}
-            >
-              Use today&apos;s top story (auto-pick)
-            </button>
-            <div className="flex gap-2">
-              {(['authoritative', 'casual', 'dramatic'] as VoicePreset[]).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={`rounded-lg px-3 py-1 text-xs capitalize ${voice === v ? 'bg-[var(--accent-gold)] text-black' : 'border border-[var(--border)]'}`}
-                  onClick={() => setVoice(v)}
-                >
-                  {v}
-                </button>
-              ))}
+        <div className="grid gap-16 lg:grid-cols-12 items-start">
+          <div className="lg:col-span-4 flex flex-col gap-8">
+            <h1 className="text-6xl font-black tracking-tighter leading-[0.8] mb-4">Deep<br/><span className="text-white/20">Cinema.</span></h1>
+            <p className="text-sm font-bold text-white/30 leading-relaxed mb-8">Transform any intelligence thread into a high-fidelity cinematic script with autonomous narration.</p>
+            
+            <div className="space-y-6">
+               <input
+                 className="w-full rounded-2xl bg-white/[0.03] border border-white/5 px-6 py-4 text-sm font-bold text-white outline-none focus:border-purple-500/50"
+                 placeholder="Search Intelligence Topic..."
+                 value={topic}
+                 onChange={(e) => setTopic(e.target.value)}
+               />
+               
+               <div className="flex gap-2">
+                 {(['authoritative', 'casual', 'dramatic'] as VoicePreset[]).map((v) => (
+                   <button
+                     key={v}
+                     type="button"
+                     className={`flex-1 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${voice === v ? 'bg-purple-600 text-white' : 'bg-white/5 text-white/40 border border-white/5 hover:border-white/20'}`}
+                     onClick={() => setVoice(v)}
+                   >
+                     {v}
+                   </button>
+                 ))}
+               </div>
+               
+               <div className="flex gap-2">
+                 <button
+                   type="button"
+                   className={`w-full rounded-2xl py-5 text-sm font-black transition-all shadow-2xl ${loading ? 'bg-white/10 text-white/20' : 'bg-white text-black hover:scale-[1.01]'}`}
+                   onClick={() => void generate()}
+                   disabled={loading}
+                 >
+                   {loading ? 'Synthesizing...' : '1. Build Script'}
+                 </button>
+                 {script && (
+                   <button
+                    type="button"
+                    className={`w-full rounded-2xl py-5 text-sm font-black transition-all shadow-2xl border border-white/10 ${renderingVeo ? 'bg-purple-900/40 text-purple-400' : 'bg-purple-600 text-white hover:bg-purple-500'}`}
+                    onClick={() => void renderWithVeo()}
+                    disabled={renderingVeo}
+                  >
+                    {renderingVeo ? 'VEO Rendering...' : '2. Render VEO'}
+                  </button>
+                 )}
+               </div>
             </div>
-            <button
-              type="button"
-              className="w-full rounded-xl bg-[var(--accent-gold)] px-4 py-3 text-sm font-semibold text-black"
-              onClick={() => void generate()}
-              disabled={loading}
-            >
-              {loading ? 'Generating…' : 'Generate Video Script'}
-            </button>
           </div>
-          <div className="lg:col-span-7">
-            <div className="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-black">
+
+          <div className="lg:col-span-8">
+            <div className="overflow-hidden rounded-[40px] border border-white/10 bg-black shadow-2xl relative">
               <div
-                className="flex aspect-video items-center justify-center p-8 text-center"
-                style={{ backgroundColor: active?.background_color || '#111' }}
+                className="flex aspect-video items-center justify-center p-16 text-center transition-colors duration-1000"
+                style={{ backgroundColor: active?.background_color || '#000' }}
               >
-                <motion.p key={sceneIdx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-display text-2xl text-white md:text-3xl">
-                  {active?.text ?? 'Script preview'}
-                </motion.p>
+                 {veoUrl ? (
+                   <video 
+                     src={veoUrl} 
+                     autoPlay 
+                     controls 
+                     className="w-full h-full object-cover rounded-[32px] border border-white/10 animate-in fade-in zoom-in duration-1000"
+                   />
+                 ) : (
+                   <AnimatePresence mode="wait">
+                    <motion.p 
+                      key={sceneIdx} 
+                      initial={{ opacity: 0, scale: 0.95 }} 
+                      animate={{ opacity: 1, scale: 1 }} 
+                      exit={{ opacity: 0, scale: 1.05 }}
+                      transition={{ duration: 0.8, ease: "circOut" }}
+                      className="font-display text-4xl font-black text-white md:text-5xl tracking-tighter leading-none italic"
+                    >
+                      {active?.text ?? 'STUDIO READY. STANDBY...'}
+                    </motion.p>
+                  </AnimatePresence>
+                 )}
+                <div className="absolute top-10 left-10 text-[10px] font-black tracking-[0.4em] text-white/20 uppercase">SCENE {sceneIdx + 1}</div>
               </div>
-              <div className="flex items-center gap-2 border-t border-[var(--border-subtle)] px-4 py-3">
+              
+              <div className="flex items-center gap-6 border-t border-white/5 bg-[#0a0b0c] px-10 py-8">
                 <button
                   type="button"
-                  className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs"
+                  className="h-14 w-14 flex items-center justify-center rounded-full bg-white text-black shadow-xl hover:scale-110 active:scale-95 transition-all"
                   onClick={() => { setSceneIdx(0); setPlaying(true) }}
                   disabled={!scenes.length}
-                >Play</button>
-                <div className="h-1 flex-1 rounded-full bg-[var(--bg-elevated)]">
-                  <div className="h-1 rounded-full bg-[var(--accent-gold)]" style={{ width: `${progress}%` }} />
+                >
+                   {playing ? '⏹' : '▶'}
+                </button>
+                <div className="h-1 flex-1 rounded-full bg-white/5 overflow-hidden">
+                  <motion.div 
+                    className="h-1 bg-purple-500" 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.8 }}
+                  />
                 </div>
-                <span className="font-mono text-[10px] text-[var(--text-muted)]">
-                  {totalDur ? `${sceneIdx + 1}/${scenes.length}` : '—'}
+                <span className="font-black text-[10px] tracking-widest text-white/20">
+                  {totalDur ? `${sceneIdx + 1}/${scenes.length}` : 'STUDIOIDLE'}
                 </span>
               </div>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs" onClick={downloadTxt} disabled={!script}>
-                Download Script
-              </button>
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs" onClick={() => script && void navigator.clipboard.writeText(script.scenes.map((s) => s.text).join('\n'))} disabled={!script}>
-                Copy narration
-              </button>
             </div>
           </div>
         </div>
       ) : (
-        /* ── HINDI BREAKING MODE ── */
-        <div>
-          {/* Pipeline Header */}
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, fontWeight: 700, margin: '0 0 8px' }}>
-              Breaking → Hindi Video Pipeline
-            </h1>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', maxWidth: 600, margin: '0 auto 20px', lineHeight: 1.6 }}>
-              One click: fetches the latest breaking news, generates a 60-90 second Hindi explainer
-              video with culturally appropriate analogies, no English jargon, and accurate facts.
-            </p>
-
-            {!hindiLoading && !hindiScript && (
-              <button
-                onClick={() => void startHindiPipeline()}
-                style={{
-                  background: 'linear-gradient(135deg, #e63946, #f0a500)',
-                  border: 'none',
-                  borderRadius: 12,
-                  padding: '16px 40px',
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: '#000',
-                  cursor: 'pointer',
-                  fontFamily: 'DM Sans, sans-serif',
-                }}
-              >
-                ⚡ Generate Hindi Video Now
-              </button>
-            )}
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-20">
+             <div className="inline-flex px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] font-black text-purple-400 uppercase tracking-[0.4em] mb-8">Vernacular Acceleration</div>
+             <h1 className="text-7xl font-black tracking-tighter mb-8 italic uppercase">Zero<span className="text-white/10">-Latency.</span></h1>
+             <p className="text-xl font-bold text-white/30 max-w-xl mx-auto leading-relaxed mb-12">Generating full-spectrum Hindi intelligence explainers from live breaking signals in under 60 seconds.</p>
+             
+             {!hindiLoading && !hindiScript && (
+               <button
+                 onClick={() => void startHindiPipeline()}
+                 className="px-16 py-6 rounded-3xl bg-white text-black text-sm font-black hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-white/5"
+               >
+                 START TRANSMISSION
+               </button>
+             )}
           </div>
 
-          {/* Countdown Timer */}
           {(hindiLoading || pipelineComplete) && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-              <div style={{
-                background: pipelineComplete ? (Number(elapsedSeconds) < 60 ? 'rgba(46,196,182,0.1)' : 'rgba(230,57,70,0.1)') : 'rgba(240,165,0,0.1)',
-                border: `2px solid ${pipelineComplete ? (Number(elapsedSeconds) < 60 ? '#2ec4b6' : '#e63946') : '#f0a500'}`,
-                borderRadius: 16,
-                padding: '16px 32px',
-                textAlign: 'center',
-              }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
-                  {pipelineComplete ? 'PIPELINE COMPLETED IN' : 'PIPELINE RUNNING'}
-                </div>
-                <div style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: 48,
-                  fontWeight: 700,
-                  color: pipelineComplete ? (Number(elapsedSeconds) < 60 ? '#2ec4b6' : '#e63946') : '#f0a500',
-                }}>
-                  {elapsedSeconds}s
-                </div>
-                {pipelineComplete && Number(elapsedSeconds) < 60 && (
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#2ec4b6', letterSpacing: '0.15em', marginTop: 4 }}>
-                    ✓ UNDER 60 SECONDS
-                  </div>
-                )}
+            <div className="flex justify-center mb-20 scale-150">
+              <div className="text-center">
+                 <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 mb-2">SYNTHESIS TIME</div>
+                 <div className="text-6xl font-black text-white tabular-nums">{elapsedSeconds}s</div>
+                 {pipelineComplete && Number(elapsedSeconds) < 60 && <div className="text-[10px] font-black text-purple-500 mt-2 tracking-[0.2em]">✓ RECORD SPEED</div>}
               </div>
             </div>
           )}
 
-          {/* Pipeline Steps */}
-          {hindiLoading && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#e63946', animation: `bounce 0.8s ease-in-out ${i * 0.15}s infinite alternate` }} />
-                ))}
-              </div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#e63946', letterSpacing: '0.1em' }}>
-                {!breakingArticle ? '1/2 FETCHING BREAKING NEWS...' : '2/2 GENERATING HINDI SCRIPT...'}
-              </div>
-            </div>
-          )}
-
-          {/* Source Article */}
-          {breakingArticle && (
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 16, marginBottom: 24, maxWidth: 700, margin: '0 auto 24px' }}>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.12em', marginBottom: 8 }}>
-                SOURCE ARTICLE
-              </div>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: '#f0ede8', margin: '0 0 4px', lineHeight: 1.4 }}>
-                {breakingArticle.title}
-              </h3>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0, lineHeight: 1.5 }}>
-                {breakingArticle.description}
-              </p>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 6 }}>
-                {breakingArticle.source?.name}
-              </div>
-            </div>
-          )}
-
-          {/* Hindi Video Player */}
           {hindiScript && (
-            <div style={{ maxWidth: 800, margin: '0 auto' }}>
-              <div style={{ overflow: 'hidden', borderRadius: 16, border: '2px solid rgba(230,57,70,0.3)', background: '#000' }}>
-                {/* Video viewport */}
-                <div
-                  style={{
-                    aspectRatio: '16/9',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 32,
-                    textAlign: 'center',
-                    backgroundColor: activeHindiScene?.background_color || '#111',
-                    transition: 'background-color 0.5s',
-                    position: 'relative',
-                  }}
-                >
-                  {/* Scene ID label */}
-                  <div style={{ position: 'absolute', top: 12, left: 16, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.15em' }}>
-                    {activeHindiScene?.id?.toUpperCase() || 'READY'}
-                  </div>
-
-                  {/* Visual cue */}
-                  {activeHindiScene?.visualCue && (
-                    <div style={{ position: 'absolute', top: 12, right: 16, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.25)', maxWidth: 200, textAlign: 'right' }}>
-                      🎬 {activeHindiScene.visualCue}
-                    </div>
-                  )}
-
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={hindiSceneIdx}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.4 }}
-                    >
-                      {/* Hindi text (Devanagari) */}
-                      <p style={{
-                        fontFamily: "'Noto Sans Devanagari', 'Mangal', sans-serif",
-                        fontSize: 28,
-                        color: '#ffffff',
-                        lineHeight: 1.6,
-                        margin: '0 0 12px',
-                        fontWeight: 600,
-                      }}>
-                        {activeHindiScene?.hindiText || hindiScript.hindiTitle || 'तैयार है'}
-                      </p>
-
-                      {/* Romanized (smaller, for non-Hindi readers) */}
-                      {activeHindiScene?.romanized && (
-                        <p style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic', margin: 0 }}>
-                          {activeHindiScene.romanized}
-                        </p>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-
-                  {/* NewsOS branding */}
-                  <div style={{ position: 'absolute', bottom: 12, left: 16, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.15)', letterSpacing: '0.1em' }}>
-                    NEWSОС · HINDI EXPLAINER
-                  </div>
-                </div>
-
-                {/* Controls */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px', background: 'rgba(0,0,0,0.5)' }}>
-                  <button
-                    onClick={() => {
-                      setHindiSceneIdx(0)
-                      setHindiProgress(0)
-                      setHindiPlaying(true)
-                    }}
-                    style={{ background: '#e63946', border: 'none', borderRadius: 8, padding: '6px 16px', fontSize: 12, fontWeight: 600, color: '#fff', cursor: 'pointer' }}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="overflow-hidden rounded-[48px] border border-white/10 bg-black shadow-2xl"
+            >
+              <div
+                className="flex aspect-video items-center justify-center p-16 text-center relative overflow-hidden"
+                style={{ backgroundColor: activeHindiScene?.background_color || '#000' }}
+              >
+                <div className="absolute top-12 left-12 text-[10px] font-black tracking-[0.5em] text-white/20 uppercase italic">VERNACULAR BROADCAST</div>
+                
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={hindiSceneIdx}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.6, ease: "circOut" }}
                   >
-                    {hindiPlaying ? '⟳ Restart' : '▶ Play'}
-                  </button>
-                  <button
-                    onClick={() => { setHindiPlaying(false); stopSpeaking() }}
-                    style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}
-                  >
-                    ⏸ Pause
-                  </button>
-                  <div style={{ flex: 1, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.1)' }}>
-                    <div style={{ height: 4, borderRadius: 4, background: '#e63946', width: `${hindiProgress}%`, transition: 'width 0.3s' }} />
-                  </div>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                    {hindiTotalDur ? `${hindiSceneIdx + 1}/${hindiScenes.length} · ${hindiTotalDur}s` : '—'}
-                  </span>
-                </div>
-              </div>
-
-              {/* English reference & Fact check */}
-              {activeHindiScene && (
-                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: 14 }}>
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', marginBottom: 6 }}>
-                      ENGLISH REFERENCE
-                    </div>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: 0, lineHeight: 1.5 }}>
-                      {activeHindiScene.englishReference}
+                    <p className="font-display text-5xl font-black text-white leading-[1.1] mb-6 tracking-tighter italic">
+                      {activeHindiScene?.hindiText || 'READY OUT'}
                     </p>
-                  </div>
-                  {hindiScript.factCheckSummary && (
-                    <div style={{ background: 'rgba(46,196,182,0.05)', border: '1px solid rgba(46,196,182,0.2)', borderRadius: 10, padding: 14 }}>
-                      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#2ec4b6', letterSpacing: '0.1em', marginBottom: 6 }}>
-                        ✓ FACT CHECK
-                      </div>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', margin: 0, lineHeight: 1.5 }}>
-                        {hindiScript.factCheckSummary}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Scene list */}
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.12em', marginBottom: 10 }}>
-                  SCENE BREAKDOWN
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {hindiScenes.map((sc, i) => (
-                    <button
-                      key={sc.id}
-                      onClick={() => { setHindiSceneIdx(i); setHindiPlaying(false); stopSpeaking() }}
-                      style={{
-                        display: 'flex', gap: 12, alignItems: 'center',
-                        background: hindiSceneIdx === i ? 'rgba(230,57,70,0.1)' : 'rgba(255,255,255,0.02)',
-                        border: `1px solid ${hindiSceneIdx === i ? 'rgba(230,57,70,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                        borderRadius: 8, padding: '8px 12px', cursor: 'pointer', width: '100%', textAlign: 'left',
-                      }}
-                    >
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#e63946', minWidth: 20 }}>{i + 1}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', marginBottom: 2 }}>
-                          {sc.id.toUpperCase()} · {sc.duration}s
-                        </div>
-                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>{sc.hindiText.slice(0, 60)}...</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                    <p className="text-sm font-bold text-white/30 italic uppercase tracking-[0.2em]">{activeHindiScene?.romanized}</p>
+                  </motion.div>
+                </AnimatePresence>
               </div>
-            </div>
+
+              <div className="bg-[#0a0b0c] p-10 flex flex-col gap-6">
+                 <div className="flex items-center gap-6">
+                    <button
+                      onClick={() => setHindiPlaying(!hindiPlaying)}
+                      className="h-16 w-16 min-w-[64px] rounded-full bg-white text-black flex items-center justify-center text-xl shadow-xl hover:scale-110 active:scale-95 transition-all"
+                    >
+                       {hindiPlaying ? '⏹' : '▶'}
+                    </button>
+                    <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                       <motion.div className="h-full bg-purple-500" animate={{ width: `${hindiProgress}%` }} />
+                    </div>
+                    <span className="font-black text-[10px] text-white/20 tracking-widest">{hindiSceneIdx + 1}/{hindiScenes.length}</span>
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-6 mt-4">
+                    <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-6">
+                       <span className="block text-[8px] font-black uppercase text-purple-500 mb-2 tracking-[0.3em]">Causal Logic</span>
+                       <p className="text-xs font-bold text-white/40 leading-relaxed">{activeHindiScene?.englishReference}</p>
+                    </div>
+                    {hindiScript.factCheckSummary && (
+                      <div className="rounded-2xl bg-purple-500/5 border border-purple-500/10 p-6">
+                         <span className="block text-[8px] font-black uppercase text-purple-400 mb-2 tracking-[0.3em]">Verification</span>
+                         <p className="text-xs font-bold text-white/30 leading-relaxed italic">{hindiScript.factCheckSummary}</p>
+                      </div>
+                    )}
+                 </div>
+              </div>
+            </motion.div>
           )}
         </div>
       )}
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes bounce { from { transform: translateY(0); opacity: 0.4; } to { transform: translateY(-5px); opacity: 1; } }
-      `}</style>
     </div>
   )
 }

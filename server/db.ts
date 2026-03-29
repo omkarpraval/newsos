@@ -14,7 +14,7 @@ export const pool = conn
     })
   : null
 
-export async function query(text: string, params?: unknown[]) {
+export async function query<T = any>(text: string, params?: unknown[]) {
   if (!pool) throw new Error('DATABASE_URL not configured')
-  return pool.query(text, params)
+  return pool.query<T>(text, params)
 }
