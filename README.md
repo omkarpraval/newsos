@@ -2,6 +2,8 @@
 ```md
 # NewsOS
 
+#Try it Now: https://newsos-4dl6.onrender.com
+
 AI-native newsroom platform built with **React + TypeScript + Vite** (frontend) and **Express + PostgreSQL** (backend), focused on personalized news intelligence, multi-angle analysis, vernacular adaptation, and AI-assisted briefing/video workflows.
 
 ## Highlights
