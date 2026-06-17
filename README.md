@@ -57,6 +57,8 @@ Translates and culturally adapts stories into Indian languages with glossary sup
 Interactive dual-agent conversation experience:
 - **Riya**: energetic analyst
 - **Arjun**: devil’s advocate journalist
+  <img width="1918" height="968" alt="image" src="https://github.com/user-attachments/assets/3474c431-60f1-46cb-8131-dde5146f63cc" />
+
 
 ### 7) Video Studio
 Creates AI-friendly video script pipelines and supports Veo render endpoint integration.
